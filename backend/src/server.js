@@ -76,4 +76,15 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
 app.listen(PORT, () => {
   console.log(`Server started and listening on port ${PORT}`);
   console.log('NODE_ENV=', process.env.NODE_ENV || 'development');
+  
+  // تمّت إضافة جزء تهيئة واتساب بعد التشغيل
+  setTimeout(async () => {
+    try {
+      const whatsappService = require('./services/whatsappService');
+      await whatsappService.init();
+      console.log('WhatsApp init attempted.');
+    } catch (err) {
+      console.error('WhatsApp init error:', err && err.message ? err.message : err);
+    }
+  }, 2000);
 });
