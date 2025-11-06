@@ -34,8 +34,17 @@ process.on('unhandledRejection', (reason, p) => {
 
 // connect to mongo
 const MONGO = process.env.MONGO_URI || 'mongodb://localhost:27017/pyramidsmart';
-mongoose.connect(MONGO, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(()=>console.log('Mongo connected'))
+mongoose.connect(MONGO, { 
+  useNewUrlParser: true, 
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000, // wait up to 30s to find server
+  socketTimeoutMS: 45000           // close sockets after 45s of inactivity
+})
+  .then(()=>{
+    console.log('Mongo connected');
+    // Once connected, ensure admin exists
+    ensureAdmin().catch(e => console.error('ensureAdmin failed:', e && e.message ? e.message : e));
+  })
   .catch(err=>{
     console.error('Mongo connection error:', err && err.message ? err.message : err);
   });
@@ -65,11 +74,6 @@ async function ensureAdmin(){
     console.error('Admin creation error', err && err.message ? err.message : err);
   }
 }
-
-// Call ensureAdmin after a short delay so DB has time to connect (non-blocking)
-setTimeout(() => {
-  ensureAdmin().catch(e => console.error('ensureAdmin failed:', e));
-}, 3000);
 
 // Start server and bind to the Render-provided port (process.env.PORT)
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;

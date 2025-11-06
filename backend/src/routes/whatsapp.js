@@ -6,7 +6,8 @@ const WhatsAppLog = require('../models/WhatsAppLog');
 const Client = require('../models/Client');
 
 // ensure service initialized
-whatsappService.init();
+// NOTE: initialization is triggered from server.js after DB connects
+// whatsappService.init();
 
 // GET /api/whatsapp/qr -> returns dataURL of QR or null
 router.get('/qr', async (req, res) => {
