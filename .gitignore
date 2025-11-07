@@ -3,4 +3,3 @@ node_modules
 dist
 .vscode
 .DS_Store
-backend/whatsapp-session/
