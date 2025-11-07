@@ -1,25 +1,72 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { API_URL } from "../constants/api";
 
-export default function ExpensesPage() {
+export default function ProductsPage() {
+  const [products, setProducts] = useState([]);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_URL}/products`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        setProducts(data);
+      } catch (err) {
+        console.error("Failed to load products", err);
+      }
+    };
+
+    fetchProducts();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <h1 className="text-3xl font-bold text-yellow-600 mb-6">Expenses</h1>
+      <header className="mb-6 flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-yellow-600">Products</h1>
+        <button className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow">
+          Add Product
+        </button>
+      </header>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Rent</h2>
-          <p className="text-gray-600">$1,200 / month</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Utilities</h2>
-          <p className="text-gray-600">$450 / month</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-xl shadow">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Supplies</h2>
-          <p className="text-gray-600">$300 / month</p>
-        </div>
+      <div className="overflow-x-auto rounded-lg shadow">
+        <table className="min-w-full bg-white">
+          <thead>
+            <tr className="bg-yellow-100 text-gray-700">
+              <th className="py-3 px-4 text-left">Name</th>
+              <th className="py-3 px-4 text-left">Price</th>
+              <th className="py-3 px-4 text-left">Category</th>
+              <th className="py-3 px-4 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((product) => (
+              <tr key={product._id} className="border-b hover:bg-gray-50">
+                <td className="py-3 px-4">{product.name}</td>
+                <td className="py-3 px-4">${product.price}</td>
+                <td className="py-3 px-4">{product.category}</td>
+                <td className="py-3 px-4 space-x-2">
+                  <button className="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                    Edit
+                  </button>
+                  <button className="text-sm bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {products.length === 0 && (
+              <tr>
+                <td colSpan="4" className="text-center py-6 text-gray-500">
+                  No products found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
