@@ -1,5 +1,6 @@
+// src/pages/LoginPage.jsx
 import React, { useState } from "react";
-import { API_URL } from "../../constants/api";
+import { API_URL } from "../constants/api";
 import { useNavigate } from "react-router-dom";
 
 export default function LoginPage() {
@@ -28,6 +29,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       alert("Server connection error");
+      console.error(err);
     }
   };
 
