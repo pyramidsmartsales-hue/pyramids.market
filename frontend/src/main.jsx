@@ -1,17 +1,22 @@
-import React from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import App from './App'
-import './styles.css'
-import AuthProvider from './AuthProvider'
-import './index.css';
+// pyramids-mart/frontend/src/main.jsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 
-createRoot(document.getElementById('root')).render(
+// معالجات أخطاء عامة لمنع توقف الريندر بسبب وعود غير معالجة
+window.addEventListener("error", (e) => {
+  console.error("Window error:", e.error || e.message || e);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("Unhandled promise rejection:", e.reason || e);
+});
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App/>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
-)
+);
