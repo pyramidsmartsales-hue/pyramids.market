@@ -4,6 +4,7 @@ import ChartSales from '../components/ChartSales'
 
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
+// بيانات افتراضية مسبقة (يوم/شهر/سنة)
 const DATA = {
   day: [
     { label: '8am', sales: 12500, expenses: 4200, net: 8300 },
@@ -16,30 +17,62 @@ const DATA = {
   year: Array.from({length: 12}).map((_,i)=>({ label:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i], sales: 250000+i*18000, expenses: 120000+i*10000, net: 130000+i*8000 })),
 }
 
+// توليد بيانات تجريبية بين تاريخين (يومياً)
+function makeCustomData(from, to) {
+  try {
+    const start = new Date(from)
+    const end = new Date(to)
+    if (isNaN(start) || isNaN(end) || start > end) return []
+    const days = Math.ceil((end - start) / (1000*60*60*24)) + 1
+    return Array.from({ length: days }).map((_, idx) => {
+      const d = new Date(start.getTime() + idx*24*60*60*1000)
+      const seed = (d.getMonth()+1) * (d.getDate()+7)
+      const sales = 12000 + seed * 150
+      const expenses = 6000 + seed * 90
+      return {
+        label: d.toISOString().slice(0,10),
+        sales,
+        expenses,
+        net: sales - expenses
+      }
+    })
+  } catch { return [] }
+}
+
 export default function OverviewPage() {
-  const [range, setRange] = useState('day')
-  const data = DATA[range]
+  const [range, setRange] = useState('day')   // day | month | year | custom
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [customData, setCustomData] = useState([])
+
+  const dataset = range === 'custom' ? customData : DATA[range]
 
   const totals = useMemo(() => {
-    const s = data.reduce((a,b)=>a+b.sales,0)
-    const e = data.reduce((a,b)=>a+b.expenses,0)
-    const n = data.reduce((a,b)=>a+b.net,0)
+    const s = dataset.reduce((a,b)=>a+b.sales,0)
+    const e = dataset.reduce((a,b)=>a+b.expenses,0)
+    const n = dataset.reduce((a,b)=>a+b.net,0)
     return { s, e, n }
-  }, [data])
+  }, [dataset])
+
+  function applyCustom() {
+    const data = makeCustomData(from, to)
+    setCustomData(data)
+    setRange('custom')
+  }
 
   return (
     <div className="space-y-6">
       {/* Summary cards */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        <div className="bg-elev p-4"><div className="card-title">Total Sales ({range})</div><div className="card-value mt-1">{K(totals.s)}</div></div>
-        <div className="bg-elev p-4"><div className="card-title">Expenses ({range})</div><div className="card-value mt-1">{K(totals.e)}</div></div>
-        <div className="bg-elev p-4"><div className="card-title">Net Profit ({range})</div><div className="card-value mt-1">{K(totals.n)}</div></div>
+        <div className="bg-elev p-4"><div className="card-title">Total Sales</div><div className="card-value mt-1">{K(totals.s)}</div></div>
+        <div className="bg-elev p-4"><div className="card-title">Expenses</div><div className="card-value mt-1">{K(totals.e)}</div></div>
+        <div className="bg-elev p-4"><div className="card-title">Net Profit</div><div className="card-value mt-1">{K(totals.n)}</div></div>
       </div>
 
       <Section
         title="Sales vs Expenses vs Net"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {['day','month','year'].map(v=>(
               <button
                 key={v}
@@ -49,10 +82,17 @@ export default function OverviewPage() {
                 {v === 'day' ? 'Today' : v === 'month' ? 'This Month' : 'This Year'}
               </button>
             ))}
+            <div className="mx-2 h-6 w-px bg-line" />
+            <input type="date" className="rounded-xl border border-line px-3 py-2"
+                   value={from} onChange={e=>setFrom(e.target.value)} />
+            <input type="date" className="rounded-xl border border-line px-3 py-2"
+                   value={to} onChange={e=>setTo(e.target.value)} />
+            <button className="btn btn-primary" onClick={applyCustom}>Apply</button>
           </div>
         }
       >
-        <ChartSales data={data} />
+        {dataset.length ? <ChartSales data={dataset} /> :
+          <div className="h-64 grid place-items-center text-mute">No data for selected range</div>}
       </Section>
     </div>
   )

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
+import ActionMenu from '../components/ActionMenu'
 
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
@@ -45,7 +46,6 @@ export default function ProductsPage() {
       sales:0, updatedAt: new Date().toISOString().slice(0,10), category:'', type:'', discount:0, image:null
     }})
   }
-
   function save(item){
     setRows(prev=>{
       const exists = prev.some(p=>p.id===item.id)
@@ -54,6 +54,7 @@ export default function ProductsPage() {
     setModal({open:false, edit:null})
   }
 
+  // Exporters
   function exportCSV(){
     const header = ['name','salePrice','cost','qty','status','sales','updatedAt','category','type','discount']
     const lines = [header.join(',')]
@@ -61,8 +62,12 @@ export default function ProductsPage() {
     const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href = url; a.download = 'products.csv'; a.click(); URL.revokeObjectURL(url)
   }
+  // Placeholders
+  const exportPDF = () => alert('PDF export placeholder')
+  const exportExcel = () => alert('Excel export placeholder')
 
-  function importCSV(){
+  // Importers
+  function importCSVFromText(){
     try{
       const lines = csvText.trim().split('\n')
       const header = lines[0].split(',').map(s=>s.trim())
@@ -78,6 +83,8 @@ export default function ProductsPage() {
       alert('Imported!')
     }catch(e){ alert('CSV parse error') }
   }
+  const importPDF = () => alert('PDF import placeholder')
+  const importExcel = () => alert('Excel import placeholder')
 
   return (
     <div className="space-y-6">
@@ -87,16 +94,37 @@ export default function ProductsPage() {
           <div className="flex gap-2">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search products..." className="rounded-xl border border-line px-3 py-2" />
             <button className="btn btn-primary" onClick={openNew}>Add New Product</button>
-            <button className="btn" onClick={exportCSV}>Export CSV</button>
+
+            {/* Export menu */}
+            <ActionMenu
+              label="Export"
+              options={[
+                { label: 'CSV', onClick: exportCSV },
+                { label: 'PDF', onClick: exportPDF },
+                { label: 'Excel', onClick: exportExcel },
+              ]}
+            />
+
+            {/* Import menu */}
+            <ActionMenu
+              label="Import"
+              options={[
+                { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox').scrollIntoView({behavior:'smooth'}) },
+                { label: 'PDF', onClick: importPDF },
+                { label: 'Excel', onClick: importExcel },
+              ]}
+            />
           </div>
         }
       >
         <Table columns={columns} data={filtered} />
-        <div className="mt-4">
+
+        {/* CSV paste box */}
+        <div className="mt-4" id="csvBox">
           <details>
             <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
             <textarea value={csvText} onChange={e=>setCsvText(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,salePrice,cost,qty,status,sales,updatedAt,category,type,discount&#10;Tea,600,350,50,Active,10,2025-02-01,Beverages,Tea,0" />
-            <button className="btn mt-2" onClick={importCSV}>Import</button>
+            <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
           </details>
         </div>
       </Section>
