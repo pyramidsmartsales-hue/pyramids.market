@@ -1,17 +1,21 @@
 import React from 'react'
 
 const PRODUCTS = [
-  { id: 1, name: 'Green Tea', stock: 120, price: 6.75 },
-  { id: 2, name: 'Chocolate Bar', stock: 88, price: 2.5 },
-  { id: 3, name: 'Coffee Beans', stock: 45, price: 12.99 },
+  { id: 1, name: 'Green Tea', stock: 120, price: 675 },   // KSh values
+  { id: 2, name: 'Chocolate Bar', stock: 88, price: 250 },
+  { id: 3, name: 'Coffee Beans', stock: 45, price: 1299 },
 ]
+
+function fmtKSh(n) {
+  return `KSh ${n.toLocaleString('en-KE')}`
+}
 
 function ProductCard({ name, stock, price }) {
   return (
     <div className="bg-[#FFF9E6] border border-line rounded-2xl p-5 hover:shadow-soft transition">
       <div className="text-base font-semibold text-ink">{name}</div>
       <div className="mt-2 text-sm text-mute">Stock: {stock} units</div>
-      <div className="text-sm text-mute">Price: ${price}</div>
+      <div className="text-sm text-mute">Price: {fmtKSh(price)}</div>
     </div>
   )
 }

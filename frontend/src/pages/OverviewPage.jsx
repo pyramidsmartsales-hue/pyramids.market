@@ -33,10 +33,10 @@ export default function OverviewPage() {
       </div>
 
       <section className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-        <Stat title="Total Sales" value="EGP 124,560" delta="+12%" />
+        <Stat title="Total Sales" value="KSh 124,560" delta="+12%" />
         <Stat title="Today Orders" value="86" delta="+6%" />
         <Stat title="New Customers" value="42" delta="+3%" />
-        <Stat title="Net Profit" value="EGP 31,220" delta="-2%" />
+        <Stat title="Net Profit" value="KSh 31,220" delta="-2%" />
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
