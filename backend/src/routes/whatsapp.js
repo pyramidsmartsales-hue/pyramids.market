@@ -1,4 +1,3 @@
-// backend/src/routes/whatsapp.js
 const express = require('express');
 const router = express.Router();
 const wa = require('../services/whatsappService');
@@ -6,7 +5,7 @@ const wa = require('../services/whatsappService');
 // --------- Health ----------
 router.get('/', (_req, res) => res.json({ ok: true, service: 'whatsapp-web' }));
 
-// --------- Init (POST + GET) ----------
+// --------- Init ----------
 router.post('/init', async (_req, res) => {
   try { await wa.start(); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
@@ -22,13 +21,11 @@ router.get('/status', async (_req, res) => {
   catch (e) { res.status(500).json({ error: String(e) }); }
 });
 
-// --------- QR (data URL JSON) ----------
+// --------- QR ----------
 router.get('/qr', async (_req, res) => {
   try { res.json({ dataUrl: await wa.getQrDataUrl() }); }
   catch (e) { res.status(500).json({ error: String(e) }); }
 });
-
-// --------- QR Image (PNG مباشرة) ----------
 router.get('/qr-image', async (_req, res) => {
   try {
     const dataUrl = await wa.getQrDataUrl();
@@ -53,7 +50,27 @@ router.post('/send-bulk', async (req, res) => {
   }
 });
 
-// --------- Reset session (POST + GET) ----------
+// --------- Pairing Code ----------
+router.post('/pairing-code', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const code = await wa.requestPairingCode(phone);
+    res.json({ ok: true, code });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+router.get('/pairing-code', async (req, res) => {
+  try {
+    const phone = (req.query.phone || '').toString();
+    const code = await wa.requestPairingCode(phone);
+    res.json({ ok: true, code });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+// --------- Reset ----------
 router.post('/reset-session', async (_req, res) => {
   try { await wa.resetSession(); res.json({ ok: true }); }
   catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
@@ -63,34 +80,9 @@ router.get('/reset-session', async (_req, res) => {
   catch (e) { res.status(500).json({ ok: false, error: String(e) }); }
 });
 
-// --------- Debug path ----------
+// --------- Debug ----------
 router.get('/debug-session-path', (_req, res) => {
   res.json({ path: wa.SESSION_DIR });
-});
-
-// --------- Pairing code ----------
-router.post('/pairing-code', async (req, res) => {
-  try {
-    const { phone } = req.body || {};
-
-    if (!phone) {
-      return res.status(400).json({ ok: false, error: 'يجب إرسال رقم الهاتف (phone)' });
-    }
-
-    // منطق مؤقت لتوليد كود تجريبي
-    const fakeCode = 'ABC123';
-
-    res.json({
-      ok: true,
-      phone,
-      code: fakeCode,
-      message: 'تم إنشاء كود الاقتران بنجاح'
-    });
-
-  } catch (e) {
-    console.error('pairing-code error:', e);
-    res.status(500).json({ ok: false, error: String(e) });
-  }
 });
 
 module.exports = router;
