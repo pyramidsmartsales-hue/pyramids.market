@@ -1,18 +1,16 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import ActionMenu from '../components/ActionMenu'
-
-const INIT = [
-  { id: 1, name: 'Mohamed Adel', phone: '+254700000001', orders: 12, lastOrder: '2025-02-01', points: 120 },
-  { id: 2, name: 'Sara Nabil', phone: '+254700000002', orders: 4, lastOrder: '2025-02-03', points: 30 },
-  { id: 3, name: 'Omar Ali', phone: '+254700000003', orders: 20, lastOrder: '2025-02-04', points: 220 },
-]
+import { loadClients, saveClients } from '../lib/store'
 
 export default function ClientsPage() {
-  const [rows, setRows] = useState(INIT)
-  const [q, setQ] = useState('')
-  const [csvText, setCsvText] = useState('')
+  const [rows, setRows]   = useState(loadClients())
+  const [q, setQ]         = useState('')
+  const [csvText, setCsv] = useState('')
+
+  // keep in sync with localStorage (e.g., from POS confirm)
+  useEffect(()=>{ setRows(loadClients()) }, [])
 
   const filtered = useMemo(
     ()=>rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) || r.phone.includes(q)),
@@ -20,18 +18,23 @@ export default function ClientsPage() {
   )
 
   const columns = [
-    { key: 'name', title: 'Name' },
-    { key: 'phone', title: 'Phone' },
-    { key: 'orders', title: 'Orders' },
+    { key: 'name',      title: 'Name' },
+    { key: 'phone',     title: 'Phone' },
+    { key: 'orders',    title: 'Orders' },
     { key: 'lastOrder', title: 'Last Order' },
-    { key: 'points', title: 'Loyalty Points', render: r => (
+    { key: 'points',    title: 'Loyalty Points', render: r => (
       <div className="flex items-center gap-2">
         <span>{r.points}</span>
-        <button className="btn" onClick={()=>setRows(rows.map(x=>x.id===r.id? {...x, points:x.points+10}:x))}>+10</button>
-        <button className="btn" onClick={()=>setRows(rows.map(x=>x.id===r.id? {...x, points:Math.max(0,x.points-10)}:x))}>-10</button>
+        <button className="btn" onClick={()=>updatePoints(r.id, +10)}>+10</button>
+        <button className="btn" onClick={()=>updatePoints(r.id, -10)}>-10</button>
       </div>
     )},
   ]
+
+  function updatePoints(id, delta){
+    const next = rows.map(x => x.id===id ? {...x, points: Math.max(0, (x.points||0)+delta)} : x)
+    setRows(next); saveClients(next)
+  }
 
   // Export
   function exportCSV(){
@@ -40,7 +43,7 @@ export default function ClientsPage() {
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='clients.csv'; a.click(); URL.revokeObjectURL(url)
   }
-  const exportPDF = () => alert('PDF export placeholder')
+  const exportPDF   = () => alert('PDF export placeholder')
   const exportExcel = () => alert('Excel export placeholder')
 
   // Import
@@ -55,12 +58,12 @@ export default function ClientsPage() {
         obj.orders = +obj.orders; obj.points = +obj.points
         return obj
       })
-      setRows(prev => [...items, ...prev])
-      setCsvText('')
+      const next = [...items, ...rows]
+      setRows(next); saveClients(next); setCsv('')
       alert('Imported!')
     }catch(e){ alert('CSV parse error') }
   }
-  const importPDF = () => alert('PDF import placeholder')
+  const importPDF   = () => alert('PDF import placeholder')
   const importExcel = () => alert('Excel import placeholder')
 
   return (
@@ -70,23 +73,16 @@ export default function ClientsPage() {
         actions={
           <div className="flex gap-2">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search client..." className="rounded-xl border border-line px-3 py-2" />
-
-            <ActionMenu
-              label="Export"
-              options={[
-                { label: 'CSV', onClick: exportCSV },
-                { label: 'PDF', onClick: exportPDF },
-                { label: 'Excel', onClick: exportExcel },
-              ]}
-            />
-            <ActionMenu
-              label="Import"
-              options={[
-                { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox-clients').scrollIntoView({behavior:'smooth'}) },
-                { label: 'PDF', onClick: importPDF },
-                { label: 'Excel', onClick: importExcel },
-              ]}
-            />
+            <ActionMenu label="Export" options={[
+              { label: 'CSV', onClick: exportCSV },
+              { label: 'PDF', onClick: exportPDF },
+              { label: 'Excel', onClick: exportExcel },
+            ]}/>
+            <ActionMenu label="Import" options={[
+              { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox-clients').scrollIntoView({behavior:'smooth'}) },
+              { label: 'PDF', onClick: importPDF },
+              { label: 'Excel', onClick: importExcel },
+            ]}/>
           </div>
         }
       >
@@ -101,7 +97,7 @@ export default function ClientsPage() {
       <div className="mt-4" id="csvBox-clients">
         <details>
           <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
-          <textarea value={csvText} onChange={e=>setCsvText(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,phone,orders,lastOrder,points&#10;John,+2547...,3,2025-02-01,50" />
+        <textarea value={csvText} onChange={e=>setCsv(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,phone,orders,lastOrder,points&#10;John,+2547...,3,2025-02-01,50" />
           <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
         </details>
       </div>

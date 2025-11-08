@@ -1,25 +1,21 @@
 import React, { useMemo, useState } from 'react'
 import Section from '../components/Section'
+import { DEFAULT_CLIENTS, loadClients, applyPurchaseToClient } from '../lib/store'
 
 const PRODUCTS = [
-  { id: 1, name:'Green Tea', price: 675, barcode: '1111' },
-  { id: 2, name:'Chocolate Bar', price: 250, barcode: '2222' },
-  { id: 3, name:'Coffee Beans', price: 1299, barcode: '3333' },
-]
-const CLIENTS = [
-  { id: 1, name: 'Mohamed Adel', phone: '+254700000001' },
-  { id: 2, name: 'Sara Nabil', phone: '+254700000002' },
-  { id: 3, name: 'Omar Ali', phone: '+254700000003' },
+  { id: 1, name:'Green Tea',     price: 675,  barcode: '1111' },
+  { id: 2, name:'Chocolate Bar', price: 250,  barcode: '2222' },
+  { id: 3, name:'Coffee Beans',  price: 1299, barcode: '3333' },
 ]
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
 export default function POSPage() {
-  const [query, setQuery] = useState('')
-  const [cart, setCart] = useState([])
+  const [query, setQuery]     = useState('')
+  const [cart, setCart]       = useState([])
   const [discount, setDiscount] = useState(0)
-  const [points, setPoints] = useState(0)
-  const [pay, setPay] = useState('Cash')
-  const [client, setClient] = useState(null)
+  const [points, setPoints]   = useState(0)
+  const [pay, setPay]         = useState('Cash')
+  const [client, setClient]   = useState(loadClients()[0] || DEFAULT_CLIENTS[0])
 
   const list = useMemo(()=>{
     const q = query.toLowerCase()
@@ -27,7 +23,7 @@ export default function POSPage() {
   }, [query])
 
   const subtotal = cart.reduce((a,b)=>a+b.price*b.qty,0)
-  const final = Math.max(subtotal - discount, 0)
+  const total    = Math.max(subtotal - discount, 0)
 
   function addItem(p){
     setCart(prev=>{
@@ -40,11 +36,29 @@ export default function POSPage() {
     setCart(prev => prev.map(x => x.id===id ? {...x, qty: Math.max(1, qty)} : x))
   }
   function remove(id){ setCart(prev => prev.filter(x=>x.id!==id)) }
+
   function printInvoice(){ window.print() }
   function shareWhatsApp(){
-    const text = encodeURIComponent(`Invoice total: ${K(final)} — Client: ${client?client.phone:'N/A'} — Points: ${points}`)
+    const text = encodeURIComponent(`Invoice total: ${K(total)} — Client: ${client?client.phone:'N/A'} — Points: ${points}`)
     window.open(`https://wa.me/?text=${text}`, '_blank')
   }
+
+  function confirmPurchase(){
+    if (!client) { alert('Please select a client first'); return }
+    if (cart.length === 0) { alert('Cart is empty'); return }
+    // Apply to clients store
+    const updated = applyPurchaseToClient(client.id, { points })
+    // Clear cart & points for next sale
+    setCart([]); setDiscount(0); setPoints(0)
+    if (updated) {
+      setClient(updated)
+      alert(`Purchase confirmed!\nClient: ${updated.name}\nAdded points: ${points}\nNew total points: ${updated.points}`)
+    } else {
+      alert('Client update failed (demo store).')
+    }
+  }
+
+  const clientsList = loadClients()
 
   return (
     <div className="grid xl:grid-cols-4 gap-6">
@@ -81,7 +95,7 @@ export default function POSPage() {
         )}
       </Section>
 
-      {/* Invoice Summary + Discount + Loyalty Points + Payment + Share/Print */}
+      {/* Invoice Summary */}
       <Section title="Invoice Summary">
         <div className="space-y-3">
           <div className="flex justify-between"><span>Subtotal</span><b>{K(subtotal)}</b></div>
@@ -93,7 +107,7 @@ export default function POSPage() {
             <span>Loyalty Points</span>
             <input type="number" className="w-32 border border-line rounded-xl px-2 py-1 text-right" value={points} onChange={e=>setPoints(+e.target.value)} />
           </div>
-          <div className="flex justify-between"><span>Total</span><b>{K(final)}</b></div>
+          <div className="flex justify-between"><span>Total</span><b>{K(total)}</b></div>
 
           <div>
             <div className="card-title mb-1">Payment Method</div>
@@ -110,17 +124,18 @@ export default function POSPage() {
             Client: <b>{client ? `${client.name} (${client.phone})` : 'None selected'}</b>
           </div>
 
-          <div className="flex gap-2">
-            <button className="btn btn-primary" onClick={printInvoice}>Print</button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn btn-primary" onClick={confirmPurchase}>Confirm Purchase</button>
+            <button className="btn" onClick={printInvoice}>Print</button>
             <button className="btn" onClick={shareWhatsApp}>Share via WhatsApp</button>
           </div>
         </div>
       </Section>
 
-      {/* Select Client (from Clients page) */}
+      {/* Select Client */}
       <Section title="Select Client">
         <ul className="space-y-2">
-          {CLIENTS.map(c => (
+          {clientsList.map(c => (
             <li key={c.id}>
               <button
                 className={`w-full text-left rounded-xl px-3 py-2 border ${client?.id===c.id ? 'bg-base border-line' : 'border-line hover:bg-base'}`}

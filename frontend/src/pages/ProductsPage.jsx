@@ -7,16 +7,16 @@ import ActionMenu from '../components/ActionMenu'
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
 const INITIAL = [
-  { id: 1, name: 'Green Tea', salePrice: 675, cost: 420, qty: 120, status: 'Active', sales: 220, updatedAt: '2025-02-01', category: 'Beverages', type: 'Tea', discount: 0 },
-  { id: 2, name: 'Chocolate Bar', salePrice: 250, cost: 140, qty: 88, status: 'Active', sales: 150, updatedAt: '2025-02-02', category: 'Snacks', type: 'Chocolate', discount: 10 },
-  { id: 3, name: 'Coffee Beans', salePrice: 1299, cost: 900, qty: 45, status: 'Active', sales: 60, updatedAt: '2025-01-30', category: 'Beverages', type: 'Coffee', discount: 0 },
+  { id: 1, name: 'Green Tea',     salePrice: 675,  cost: 420, qty: 120, status: 'Active', sales: 220, updatedAt: '2025-02-01', category: 'Beverages', type: 'Tea',    discount: 0 },
+  { id: 2, name: 'Chocolate Bar', salePrice: 250,  cost: 140, qty: 88,  status: 'Active', sales: 150, updatedAt: '2025-02-02', category: 'Snacks',    type: 'Chocolate', discount: 10 },
+  { id: 3, name: 'Coffee Beans',  salePrice: 1299, cost: 900, qty: 45,  status: 'Active', sales: 60,  updatedAt: '2025-01-30', category: 'Beverages', type: 'Coffee',    discount: 0 },
 ]
 
 export default function ProductsPage() {
-  const [rows, setRows] = useState(INITIAL)
-  const [q, setQ] = useState('')
-  const [modal, setModal] = useState({ open:false, edit:null })
-  const [csvText, setCsvText] = useState('')
+  const [rows, setRows]    = useState(INITIAL)
+  const [q, setQ]          = useState('')
+  const [csvText, setCsv]  = useState('')
+  const [modal, setModal]  = useState({ open:false, edit:null })
 
   const filtered = useMemo(
     () => rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase())),
@@ -24,17 +24,17 @@ export default function ProductsPage() {
   )
 
   const columns = [
-    { key: 'name', title: 'Name' },
-    { key: 'salePrice', title: 'Sale Price', render: r => K(r.salePrice) },
-    { key: 'cost', title: 'Cost', render: r => K(r.cost) },
-    { key: 'qty', title: 'Qty', render: r => <span className={r.qty<20?'text-red-600 font-medium':''}>{r.qty}</span> },
-    { key: 'status', title: 'Status' },
-    { key: 'profit', title: 'Profit/Unit', render: r => K(r.salePrice - r.cost) },
-    { key: 'sales', title: 'Total Sales' },
-    { key: 'updatedAt', title: 'Last Update' },
-    { key: 'actions', title: 'Actions', render: r => (
+    { key: 'name',       title: 'Name' },
+    { key: 'salePrice',  title: 'Sale Price',     render: r => K(r.salePrice) },
+    { key: 'cost',       title: 'Cost',           render: r => K(r.cost) },
+    { key: 'qty',        title: 'Qty',            render: r => <span className={r.qty<20?'text-red-600 font-medium':''}>{r.qty}</span> },
+    { key: 'status',     title: 'Status' },
+    { key: 'profit',     title: 'Profit/Unit',    render: r => K(r.salePrice - r.cost) },
+    { key: 'sales',      title: 'Total Sales' },
+    { key: 'updatedAt',  title: 'Last Update' },
+    { key: 'actions',    title: 'Actions',        render: r => (
       <div className="flex gap-2">
-        <button className="btn" onClick={()=>setModal({open:true, edit:r})}>Edit</button>
+        <button className="btn" onClick={()=>setModal({open:true, edit:{...r}})}>Edit</button>
         <button className="btn" onClick={()=>setRows(rows.filter(x=>x.id!==r.id))}>Delete</button>
       </div>
     )},
@@ -62,8 +62,7 @@ export default function ProductsPage() {
     const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href = url; a.download = 'products.csv'; a.click(); URL.revokeObjectURL(url)
   }
-  // Placeholders
-  const exportPDF = () => alert('PDF export placeholder')
+  const exportPDF   = () => alert('PDF export placeholder')
   const exportExcel = () => alert('Excel export placeholder')
 
   // Importers
@@ -79,11 +78,11 @@ export default function ProductsPage() {
         return obj
       })
       setRows(prev => [...items, ...prev])
-      setCsvText('')
+      setCsv('')
       alert('Imported!')
     }catch(e){ alert('CSV parse error') }
   }
-  const importPDF = () => alert('PDF import placeholder')
+  const importPDF   = () => alert('PDF import placeholder')
   const importExcel = () => alert('Excel import placeholder')
 
   return (
@@ -95,25 +94,16 @@ export default function ProductsPage() {
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search products..." className="rounded-xl border border-line px-3 py-2" />
             <button className="btn btn-primary" onClick={openNew}>Add New Product</button>
 
-            {/* Export menu */}
-            <ActionMenu
-              label="Export"
-              options={[
-                { label: 'CSV', onClick: exportCSV },
-                { label: 'PDF', onClick: exportPDF },
-                { label: 'Excel', onClick: exportExcel },
-              ]}
-            />
-
-            {/* Import menu */}
-            <ActionMenu
-              label="Import"
-              options={[
-                { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox').scrollIntoView({behavior:'smooth'}) },
-                { label: 'PDF', onClick: importPDF },
-                { label: 'Excel', onClick: importExcel },
-              ]}
-            />
+            <ActionMenu label="Export" options={[
+              { label: 'CSV',   onClick: exportCSV },
+              { label: 'PDF',   onClick: exportPDF },
+              { label: 'Excel', onClick: exportExcel },
+            ]}/>
+            <ActionMenu label="Import" options={[
+              { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox').scrollIntoView({behavior:'smooth'}) },
+              { label: 'PDF',         onClick: importPDF },
+              { label: 'Excel',       onClick: importExcel },
+            ]}/>
           </div>
         }
       >
@@ -123,12 +113,15 @@ export default function ProductsPage() {
         <div className="mt-4" id="csvBox">
           <details>
             <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
-            <textarea value={csvText} onChange={e=>setCsvText(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,salePrice,cost,qty,status,sales,updatedAt,category,type,discount&#10;Tea,600,350,50,Active,10,2025-02-01,Beverages,Tea,0" />
+            <textarea value={csvText} onChange={e=>setCsv(e.target.value)} rows={4}
+              className="w-full border border-line rounded-xl p-2 mt-2"
+              placeholder="name,salePrice,cost,qty,status,sales,updatedAt,category,type,discount&#10;Tea,600,350,50,Active,10,2025-02-01,Beverages,Tea,0" />
             <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
           </details>
         </div>
       </Section>
 
+      {/* Per-product quick stats */}
       <Section title="Per-product stats">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {rows.slice(0,3).map(r=>(
@@ -143,7 +136,11 @@ export default function ProductsPage() {
         </div>
       </Section>
 
-      <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={modal.edit?.name || 'New product'}
+      {/* Modal with clear labels */}
+      <Modal
+        open={modal.open}
+        onClose={()=>setModal({open:false, edit:null})}
+        title={modal.edit?.id ? (rows.some(r=>r.id===modal.edit.id)?'Edit product':'New product') : 'Product'}
         footer={
           <div className="flex justify-end gap-2">
             <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
@@ -153,18 +150,78 @@ export default function ProductsPage() {
       >
         {modal.edit && (
           <div className="grid grid-cols-2 gap-3">
-            <input className="border border-line rounded-xl px-3 py-2 col-span-2" placeholder="Name" value={modal.edit.name} onChange={e=>setModal(m=>({...m, edit:{...m.edit, name:e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Sale Price (KSh)" type="number" value={modal.edit.salePrice} onChange={e=>setModal(m=>({...m, edit:{...m.edit, salePrice:+e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Cost (KSh)" type="number" value={modal.edit.cost} onChange={e=>setModal(m=>({...m, edit:{...m.edit, cost:+e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Qty" type="number" value={modal.edit.qty} onChange={e=>setModal(m=>({...m, edit:{...m.edit, qty:+e.target.value}}))}/>
-            <select className="border border-line rounded-xl px-3 py-2" value={modal.edit.status} onChange={e=>setModal(m=>({...m, edit:{...m.edit, status:e.target.value}}))}>
-              <option>Active</option><option>Inactive</option>
-            </select>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Sales" type="number" value={modal.edit.sales} onChange={e=>setModal(m=>({...m, edit:{...m.edit, sales:+e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Category" value={modal.edit.category} onChange={e=>setModal(m=>({...m, edit:{...m.edit, category:e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Type" value={modal.edit.type} onChange={e=>setModal(m=>({...m, edit:{...m.edit, type:e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Discount %" type="number" value={modal.edit.discount} onChange={e=>setModal(m=>({...m, edit:{...m.edit, discount:+e.target.value}}))}/>
-            <input className="border border-line rounded-xl px-3 py-2 col-span-2" placeholder="Last update" type="date" value={modal.edit.updatedAt} onChange={e=>setModal(m=>({...m, edit:{...m.edit, updatedAt:e.target.value}}))}/>
+            <label className="col-span-2 text-sm">
+              <span className="block text-mute mb-1">Name</span>
+              <input className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., Green Tea"
+                     value={modal.edit.name}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, name:e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Sale Price (KSh)</span>
+              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., 675"
+                     value={modal.edit.salePrice}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, salePrice:+e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Cost (KSh)</span>
+              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., 420"
+                     value={modal.edit.cost}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, cost:+e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Quantity</span>
+              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., 100"
+                     value={modal.edit.qty}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, qty:+e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Status</span>
+              <select className="border border-line rounded-xl px-3 py-2 w-full"
+                      value={modal.edit.status}
+                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, status:e.target.value}}))}>
+                <option>Active</option><option>Inactive</option>
+              </select>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Category</span>
+              <input className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., Beverages"
+                     value={modal.edit.category}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, category:e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Type</span>
+              <input className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="e.g., Tea"
+                     value={modal.edit.type}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, type:e.target.value}}))}/>
+            </label>
+
+            <label className="text-sm">
+              <span className="block text-mute mb-1">Discount %</span>
+              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
+                     placeholder="0"
+                     value={modal.edit.discount}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, discount:+e.target.value}}))}/>
+            </label>
+
+            <label className="col-span-2 text-sm">
+              <span className="block text-mute mb-1">Last update</span>
+              <input type="date" className="border border-line rounded-xl px-3 py-2 w-full"
+                     value={modal.edit.updatedAt}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, updatedAt:e.target.value}}))}/>
+            </label>
+
             <div className="col-span-2">
               <div className="text-sm text-mute mb-1">Images (demo)</div>
               <input type="file" accept="image/*" onChange={e=>setModal(m=>({...m, edit:{...m.edit, image: e.target.files?.[0] ?? null}}))}/>
