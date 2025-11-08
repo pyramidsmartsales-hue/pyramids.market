@@ -1,35 +1,54 @@
-// src/pages/OverviewPage.jsx
-import React from "react";
+import React from 'react'
+import Card from '../components/Card'
 
-export default function OverviewPage() {
+const Stat = ({ title, value, delta }) => (
+  <Card
+    title={title}
+    value={value}
+    footer={<span className={delta.startsWith('+') ? 'text-green-600' : 'text-red-600'}>{delta} هذا الأسبوع</span>}
+    icon={<div className="p-3 rounded-xl bg-base border border-line text-cocoa">★</div>}
+  />
+)
+
+export default function OverviewPage(){
   return (
-    <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-4xl">
-        <h1 className="text-3xl font-bold text-yellow-600 mb-4">Overview</h1>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">نظرة عامة</h1>
+        <button className="btn btn-primary">إنشاء تقرير</button>
+      </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="p-6 bg-yellow-50 rounded-xl shadow-inner">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Sales Summary</h2>
-            <p className="text-gray-600">Total Sales Today: $4,580</p>
-            <p className="text-gray-600">Total Sales This Month: $82,300</p>
-          </div>
+      <section className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
+        <Stat title="إجمالي المبيعات" value="EGP 124,560" delta="+12%" />
+        <Stat title="طلبات اليوم" value="86" delta="+6%" />
+        <Stat title="العملاء الجدد" value="42" delta="+3%" />
+        <Stat title="صافي الربح" value="EGP 31,220" delta="-2%" />
+      </section>
 
-          <div className="p-6 bg-yellow-50 rounded-xl shadow-inner">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Customers</h2>
-            <p className="text-gray-600">New Clients This Week: 18</p>
-            <p className="text-gray-600">Total Clients: 562</p>
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-elev p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">الأداء الشهري</h2>
+            <span className="badge">آخر 30 يوم</span>
           </div>
+          <div className="h-48 grid place-items-center text-mute">[Chart Placeholder]</div>
         </div>
-
-        <div className="mt-6 p-6 bg-yellow-50 rounded-xl shadow-inner">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Recent Activity</h2>
-          <ul className="space-y-2 text-gray-600">
-            <li>- New client added: Ahmed Khaled</li>
-            <li>- Product “Smart Watch” restocked</li>
-            <li>- POS system updated successfully</li>
+        <div className="bg-elev p-4">
+          <h2 className="font-semibold mb-4">أفضل المنتجات</h2>
+          <ul className="space-y-3">
+            {[
+              { name: 'عبوة قهوة عربية', sales: 842 },
+              { name: 'تمور مميزة', sales: 695 },
+              { name: 'شاي فاخر', sales: 512 },
+            ].map((p) => (
+              <li key={p.name} className="flex items-center justify-between">
+                <span className="truncate mr-2">{p.name}</span>
+                <span className="badge">{p.sales}</span>
+              </li>
+            ))}
           </ul>
         </div>
-      </div>
+      </section>
     </div>
-  );
+  )
 }

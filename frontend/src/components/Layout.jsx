@@ -1,66 +1,60 @@
-// src/components/Layout.jsx
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from 'react'
+import { NavLink } from 'react-router-dom'
+import Logo from './Logo'
 
-export default function Layout({ children }) {
-  const [open, setOpen] = useState(false);
+const NAV = [
+  { to: '/whatsapp', label: 'WhatsApp', icon: '💬' },
+  { to: '/products', label: 'Products', icon: '📦' },
+  { to: '/expenses', label: 'Expenses', icon: '🪙' },
+  { to: '/pos', label: 'POS', icon: '🧾' },
+  { to: '/clients', label: 'Clients', icon: '👥' },
+  { to: '/overview', label: 'Overview', icon: '📊' },
+]
+
+export default function Layout({ children }){
+  const [open, setOpen] = useState(false)
 
   return (
-    <div className="min-h-screen flex bg-gray-50 text-gray-800">
-      {/* الشريط الجانبي */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-30 transform bg-white border-r w-64 p-4 transition-transform duration-200 ease-in-out
-          ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static md:flex-shrink-0`}
-      >
-        {/* اللوجو */}
-        <div className="flex items-center gap-3 mb-6">
-          <img src="/logo.png" alt="Pyramids Mart" className="w-32 h-auto object-contain" />
-          <div>
-            <h1 className="text-lg font-extrabold">Pyramids Mart</h1>
-            <p className="text-sm text-gray-500">Dashboard</p>
+    <div className="min-h-screen bg-base text-ink">
+      {/* Top bar */}
+      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur border-b border-line">
+        <div className="h-14 px-4 md:px-6 flex items-center justify-between">
+          <button className="md:hidden btn" onClick={()=>setOpen(v=>!v)}>القائمة</button>
+          <div className="flex items-center gap-3">
+            <Logo size={28} />
+            <span className="font-semibold">Pyramids Market</span>
           </div>
+          <div className="badge">Gold Theme</div>
         </div>
+      </header>
 
-        {/* روابط التنقل */}
-        <nav className="flex flex-col space-y-1">
-          <Link to="/whatsapp" className="px-3 py-2 rounded hover:bg-yellow-50">WhatsApp</Link>
-          <Link to="/products" className="px-3 py-2 rounded hover:bg-yellow-50">Products</Link>
-          <Link to="/expenses" className="px-3 py-2 rounded hover:bg-yellow-50">Expenses</Link>
-          <Link to="/pos" className="px-3 py-2 rounded hover:bg-yellow-50">POS</Link>
-          <Link to="/clients" className="px-3 py-2 rounded hover:bg-yellow-50">Clients</Link>
-          <Link to="/overview" className="px-3 py-2 rounded hover:bg-yellow-50">Overview</Link>
-        </nav>
-      </aside>
+      <div className="flex">
+        {/* Sidebar */}
+        <aside className={`fixed md:static inset-y-0 right-0 md:right-auto z-20 bg-white border-l md:border-r border-line w-64 p-4 transition-transform md:translate-x-0 ${open? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Logo />
+            <div>
+              <div className="font-semibold">Pyramids Market</div>
+              <div className="text-xs text-mute">Dashboard</div>
+            </div>
+          </div>
+          <nav className="space-y-1">
+            {NAV.map(i=> (
+              <NavLink key={i.to} to={i.to}
+                className={({isActive})=>`flex items-center gap-3 rounded-xl px-3 py-2 border ${isActive? 'bg-base border-line' : 'border-transparent hover:border-line hover:bg-base'} transition`}
+                onClick={()=>setOpen(false)}
+              >
+                <span className="text-cocoa">{i.icon}</span>
+                <span className="font-medium">{i.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="mt-6 p-3 bg-elev text-sm text-mute">الوضع: <b className="text-ink">فاتح</b></div>
+        </aside>
 
-      {/* طبقة الخلفية (للجوال) */}
-      {open && (
-        <button
-          onClick={() => setOpen(false)}
-          className="fixed inset-0 z-20 md:hidden bg-black/30"
-          aria-hidden="true"
-        />
-      )}
-
-      {/* المحتوى */}
-      <div className="flex-1 md:ml-64">
-        {/* شريط علوي للجوال */}
-        <header className="flex items-center justify-between p-4 border-b bg-white md:hidden">
-          <button
-            onClick={() => setOpen(!open)}
-            className="p-2 rounded-md border hover:bg-gray-100"
-            aria-label="Toggle menu"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <h2 className="text-lg font-semibold">Pyramids Mart</h2>
-          <div />
-        </header>
-
-        {/* هنا تظهر صفحاتك */}
-        <main className="p-6">{children}</main>
+        {/* Content */}
+        <main className="flex-1 min-w-0 p-4 md:p-6">{children}</main>
       </div>
     </div>
-  );
+  )
 }

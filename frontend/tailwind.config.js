@@ -1,31 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}"
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: "#fffbee",
-          100: "#fff3cc",
-          200: "#ffe699",
-          300: "#ffd966",
-          400: "#ffc700",
-          500: "#ffb400", // yellow الأساسي
-          600: "#e6a300",
-          700: "#b37a00", // بني
-          800: "#7a5200",
-          900: "#3d2900"
-        },
-        blackish: "#0b0b0b", // أسود غامق عصري
-        white: "#ffffff"
+        gold: '#D4AF37', // ذهبي
+        cocoa: '#5A4632', // بني
+        ink: '#111111',  // أسود نصوص
+        base: '#FAFAFA', // خلفية فاتحة
+        card: '#FFFFFF',
+        line: '#EAE7E1',
+        mute: '#6B7280'
       },
-      fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui']
-      }
-    }
+      boxShadow: {
+        soft: '0 8px 24px rgba(17,17,17,0.06)'
+      },
+      borderRadius: { xl2: '1rem' },
+      fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] }
+    },
   },
-  plugins: []
-};
+  plugins: [],
+}

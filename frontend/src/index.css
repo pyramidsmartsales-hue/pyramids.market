@@ -1,7 +1,13 @@
-/* pyramids-mart/frontend/src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* اختياري */
-body { @apply bg-gray-50 text-gray-900 font-sans; }
+:root { --ring: #D4AF37; }
+
+.bg-elev { @apply bg-card shadow-soft rounded-2xl; }
+.badge { @apply inline-flex items-center rounded-full border border-line px-2 py-0.5 text-xs text-mute bg-white; }
+.btn { @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-line bg-white text-ink hover:shadow-soft transition; }
+.btn-primary { @apply bg-gold text-black border-gold hover:opacity-95; }
+.card-title { @apply text-sm font-medium text-mute; }
+.card-value { @apply text-2xl font-semibold text-ink; }
+.link { @apply text-cocoa hover:opacity-80 underline-offset-4 hover:underline; }
