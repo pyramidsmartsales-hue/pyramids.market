@@ -1,4 +1,6 @@
 // backend/src/services/whatsapp.js
+const fs = require('fs');
+const path = require('path');
 const QRCode = require('qrcode');
 const axios = require('axios');
 const {
@@ -12,23 +14,51 @@ let qrString = null;
 let connected = false;
 let initPromise = null;
 
-// أين نخزّن الجلسة (يفضل مجلد دائم إن وفرته على Render)
-const SESSION_DIR = process.env.WHATSAPP_SESSION_PATH || require('path').join(__dirname, '../../..', 'whatsapp-session');
+// مسار حفظ الجلسة (قرص الخدمة)
+const SESSION_DIR =
+  process.env.WHATSAPP_SESSION_PATH ||
+  path.join(__dirname, '../../..', 'whatsapp-session');
+
+// تأكد أن المجلد موجود
+function ensureDir(p) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+}
 
 async function start() {
   if (initPromise) return initPromise;
+  ensureDir(SESSION_DIR);
+
   initPromise = (async () => {
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
     const { version } = await fetchLatestBaileysVersion();
-    sock = makeWASocket({ version, auth: state, printQRInTerminal: false });
+
+    sock = makeWASocket({
+      version,
+      printQRInTerminal: false,
+      auth: state,
+    });
 
     sock.ev.on('creds.update', saveCreds);
-    sock.ev.on('connection.update', ({ connection, qr }) => {
-      if (qr) { qrString = qr; connected = false; }
-      if (connection === 'open') { connected = true; qrString = null; }
-      if (connection === 'close') { connected = false; qrString = null; setTimeout(() => start(), 3000); }
+
+    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+      if (qr) {
+        qrString = qr;
+        connected = false;
+      }
+      if (connection === 'open') {
+        connected = true;
+        qrString = null;
+        console.log('✅ WhatsApp connected');
+      } else if (connection === 'close') {
+        connected = false;
+        qrString = null;
+        const code = lastDisconnect?.error?.output?.statusCode;
+        console.log('❌ WhatsApp closed', code);
+        setTimeout(() => start(), 3000);
+      }
     });
   })();
+
   return initPromise;
 }
 
@@ -67,4 +97,18 @@ async function sendBulk({ to = [], message, mediaUrl }) {
   return results;
 }
 
-module.exports = { start, getStatus, getQrDataUrl, sendBulk };
+// إعادة تهيئة كاملة: حذف الجلسة لإجبار ظهور QR جديد
+async function resetSession() {
+  try {
+    if (fs.existsSync(SESSION_DIR)) {
+      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
+    }
+  } catch {}
+  initPromise = null;
+  sock = null;
+  qrString = null;
+  connected = false;
+  await start();
+}
+
+module.exports = { start, getStatus, getQrDataUrl, sendBulk, resetSession, SESSION_DIR };
