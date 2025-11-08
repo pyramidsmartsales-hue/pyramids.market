@@ -6,7 +6,9 @@ const axios = require('axios');
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  makeInMemoryStore,
 } = require('@whiskeysockets/baileys');
 
 let sock = null;
@@ -14,7 +16,6 @@ let qrString = null;
 let connected = false;
 let initPromise = null;
 
-// حفظ الجلسة على القرص
 const SESSION_DIR =
   process.env.WHATSAPP_SESSION_PATH ||
   path.join(__dirname, '../../..', 'whatsapp-session');
@@ -30,15 +31,26 @@ async function start() {
   initPromise = (async () => {
     const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
     const { version } = await fetchLatestBaileysVersion();
+    const store = makeInMemoryStore({});
 
     sock = makeWASocket({
       version,
       printQRInTerminal: false,
-      auth: state
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, console),
+      },
+      browser: ['Ubuntu', 'Chrome', '22.04.4'], // realistic browser identity
+      connectTimeoutMs: 45_000,
+      defaultQueryTimeoutMs: 60_000,
+      markOnlineOnConnect: false,
+      syncFullHistory: false,
+      emitOwnEvents: false,
+      generateHighQualityLinkPreview: true,
+      legacy: true, // ✅ forces legacy multi-device mode (fix for code 515)
     });
 
     sock.ev.on('creds.update', saveCreds);
-
     sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (qr) {
         qrString = qr;
@@ -53,9 +65,11 @@ async function start() {
         qrString = null;
         const code = lastDisconnect?.error?.output?.statusCode;
         console.log('❌ WhatsApp closed', code);
-        setTimeout(() => start(), 3000);
+        setTimeout(() => start(), 5000);
       }
     });
+
+    store.bind(sock.ev);
   })();
 
   return initPromise;
@@ -75,7 +89,8 @@ async function getQrDataUrl() {
 async function sendBulk({ to = [], message, mediaUrl }) {
   await start();
   if (!connected) throw new Error('WhatsApp not connected');
-  if (!Array.isArray(to) || to.length === 0) throw new Error('to must be an array');
+  if (!Array.isArray(to) || to.length === 0)
+    throw new Error('to must be an array');
 
   const results = [];
   for (const raw of to) {
@@ -109,13 +124,12 @@ async function resetSession() {
   await start();
 }
 
-// <-- النقطة المهمة: نُصدّر alias باسم init ليتوافق مع server.js
 module.exports = {
   start,
-  init: start,           // ✅ alias لإصلاح الخطأ
+  init: start,
   getStatus,
   getQrDataUrl,
   sendBulk,
   resetSession,
-  SESSION_DIR
+  SESSION_DIR,
 };
