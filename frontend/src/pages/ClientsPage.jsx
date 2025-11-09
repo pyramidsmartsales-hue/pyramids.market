@@ -1,32 +1,48 @@
+
 // frontend/src/pages/ClientsPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import ActionMenu from '../components/ActionMenu'
-import { loadClients, saveClients } from '../lib/store'
 import { readExcelRows, mapRowByAliases, exportRowsToExcel } from "../lib/excel"
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 const CLIENT_ALIASES = {
-  id: ["id", "clientid", "key", "ID"],
   name: ["name", "client", "customer", "client name"],
   phone: ["phone", "mobile", "msisdn", "tel", "Phone"],
-  orders: ["orders", "ordercount", "total orders", "Orders"],
-  lastOrder: ["lastorder", "last order", "lastorderdate", "Last Order"],
-  points: ["points", "loyalty", "score", "Points"],
+  countryCode: ["countrycode", "cc", "CountryCode", "Country Code"],
+  area: ["area"],
+  notes: ["notes", "note"],
+  tags: ["tags", "labels"],
+  orders: ["orders", "ordercount", "total orders"],
+  lastOrder: ["lastorder", "last order", "lastorderdate"],
+  points: ["points", "loyalty", "score"],
 }
 
-// Normalize phone for matching: keep digits only to avoid Excel removing '+' or spaces
-function normPhone(p){
-  const digits = String(p ?? "").replace(/[^0-9]/g, "");
-  return digits; // e.g., "+254 700 000 001" -> "254700000001"
+function normPhone(p){ return String(p ?? "").replace(/[^0-9]/g, ""); }
+
+async function api(path, opts={}){
+  const res = await fetch(`${API_BASE}${path}`, { credentials:"include", ...opts });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 export default function ClientsPage() {
-  const [rows, setRows] = useState(loadClients())
+  const [rows, setRows] = useState([])
   const [q, setQ]       = useState('')
   const fileRef = useRef(null)
 
-  useEffect(()=>{ setRows(loadClients()) }, [])
+  useEffect(()=>{
+    (async ()=>{
+      try {
+        const out = await api('/api/clients');
+        setRows(Array.isArray(out.data) ? out.data : []);
+      } catch (e) {
+        console.error('Failed to fetch clients', e);
+      }
+    })()
+  }, [])
 
   const filtered = useMemo(
     ()=>rows.filter(r => (r.name || "").toLowerCase().includes(q.toLowerCase()) || (r.phone || "").includes(q)),
@@ -36,26 +52,19 @@ export default function ClientsPage() {
   const columns = [
     { key: 'name',   title: 'Name' },
     { key: 'phone',  title: 'Phone' },
+    { key: 'countryCode', title: 'CC' },
     { key: 'orders', title: 'Orders' },
     { key: 'lastOrder', title: 'Last Order' },
     { key: 'points', title: 'Points' },
   ]
 
-  function editRow(r){
-    alert("Edit client not yet wired in this patch: " + (r.name || r.id));
-  }
-
-  function removeRow(id){
-    const next = rows.filter(x=>x.id!==id)
-    setRows(next)
-    saveClients(next)
-  }
-
-  // Export now includes a stable ID column to preserve identifiers during round-trip
   const exportExcel = () => exportRowsToExcel(filtered, [
-    { key:'id', title:'ID' },
     { key:'name', title:'Name' },
     { key:'phone', title:'Phone' },
+    { key:'countryCode', title:'CountryCode' },
+    { key:'area', title:'Area' },
+    { key:'notes', title:'Notes' },
+    { key:'tags', title:'Tags' },
     { key:'orders', title:'Orders' },
     { key:'lastOrder', title:'Last Order' },
     { key:'points', title:'Points' },
@@ -67,33 +76,40 @@ export default function ClientsPage() {
     try {
       const rowsX = await readExcelRows(f)
       const norm = rowsX.map(r => mapRowByAliases(r, CLIENT_ALIASES)).map(r => ({
-        id: r.id || String(Date.now() + Math.random()),
         name: r.name || "",
         phone: String(r.phone || ""),
+        countryCode: normPhone(r.countryCode || ""),
+        area: r.area || "",
+        notes: r.notes || "",
+        tags: r.tags || "",
         orders: Number(r.orders || 0),
         lastOrder: String(r.lastOrder || ""),
         points: Number(r.points || 0),
       }))
-      // Merge by normalized phone if present; else by id (string compare)
-      setRows(prev => {
-        const byKey = Object.create(null)
-        for (const p of prev) {
-          const key = normPhone(p.phone) || ("id:" + String(p.id || ""))
-          byKey[key] = p
-        }
-        for (const n of norm) {
-          const k = normPhone(n.phone) || ("id:" + String(n.id || ""))
-          byKey[k] = { ...(byKey[k] || {}), ...n }
-        }
-        const next = Object.values(byKey)
-        saveClients(next)
-        return next
+
+      await api('/api/clients/bulk-upsert', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: norm }),
       })
+
+      const out = await api('/api/clients');
+      setRows(Array.isArray(out.data) ? out.data : []);
+
       e.target.value = ""
-      alert("Imported Excel successfully into Clients.")
+      alert("Imported & synced.")
     } catch (err) {
       console.error(err)
-      alert("Failed to import Excel: " + err.message)
+      alert("Failed to import/sync: " + err.message)
+    }
+  }
+
+  async function removeRow(r){
+    try{
+      await api(`/api/clients/${r._id}`, { method: "DELETE" })
+      setRows(rows.filter(x=>x._id!==r._id))
+    }catch(e){
+      alert("Delete failed")
     }
   }
 
@@ -118,8 +134,8 @@ export default function ClientsPage() {
       >
         <Table columns={[...columns, {key:'__actions', title:'Actions', render:r=>(
           <div className="flex gap-2">
-            <button className="btn" onClick={()=>editRow(r)}>Edit</button>
-            <button className="btn" onClick={()=>removeRow(r.id)}>Delete</button>
+            <button className="btn" onClick={()=>alert('Edit TBD')}>Edit</button>
+            <button className="btn" onClick={()=>removeRow(r)}>Delete</button>
           </div>
         )}]} data={filtered} />
       </Section>
