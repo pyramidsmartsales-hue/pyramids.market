@@ -1,125 +1,124 @@
 // backend/src/services/whatsappService.js
-const fs = require('fs');
-const path = require('path');
 const QRCode = require('qrcode');
 const axios = require('axios');
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  Browsers,
+  jidNormalizedUser,
 } = require('@whiskeysockets/baileys');
+
+const { useMongoAuthState, clearAuth } = require('./mongoAuthState');
 
 let sock = null;
 let qrString = null;
 let connected = false;
 let initPromise = null;
 
-// تدوير إستراتيجيات الهوية (user-agent) لتجاوز 515
+// استراتيجيات "متصفح" مختلفة لتجاوز كود 515 أحيانًا
 const BROWSERS = [
   ['Ubuntu', 'Chrome',  '122.0.0'],
   ['Ubuntu', 'Edge',    '120.0.0'],
   ['Ubuntu', 'Firefox', '119.0.1'],
 ];
-
 let strategyIndex = 0;
 
-// مسار حفظ الجلسة
-const SESSION_DIR =
-  process.env.WHATSAPP_SESSION_PATH ||
-  path.join(__dirname, '../../..', 'whatsapp-session');
-
-function ensureDir(p) {
-  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
-}
-
-function wipeSession() {
-  try {
-    if (fs.existsSync(SESSION_DIR)) {
-      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-    }
-  } catch {}
-}
-
 async function _startWithStrategy(index) {
-  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+  const auth = await useMongoAuthState();
+  const { state, saveCreds, _replaceCredsRef } = auth;
   const { version } = await fetchLatestBaileysVersion();
 
   const browserTuple = BROWSERS[index % BROWSERS.length];
 
-  sock = makeWASocket({
+  const instance = makeWASocket({
     version,
-    printQRInTerminal: false,
     auth: state,
-    browser: browserTuple,
-    connectTimeoutMs: 45_000,
-    defaultQueryTimeoutMs: 60_000,
-    markOnlineOnConnect: false,
+    printQRInTerminal: false,
+    browser: Browsers.appropriate(browserTuple.join(' / ')),
+    syncFullHistory: false
   });
 
-  sock.ev.on('creds.update', saveCreds);
+  // حفظ أي تحديث على الاعتمادات
+  instance.ev.on('creds.update', async (newCreds) => {
+    _replaceCredsRef(newCreds);
+    await saveCreds();
+  });
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-    if (qr) {
-      qrString = qr;
-      connected = false;
-    }
+  instance.ev.on('connection.update', (u) => {
+    const { connection, lastDisconnect, qr } = u;
+    if (qr) { qrString = qr; connected = false; }
     if (connection === 'open') {
-      connected = true;
-      qrString = null;
+      connected = true; qrString = null;
       console.log('✅ WhatsApp connected with browser:', browserTuple.join(' / '));
     } else if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
-      connected = false;
-      qrString = null;
+      connected = false; qrString = null;
       console.log('❌ WhatsApp closed', code, 'on browser', browserTuple.join(' / '));
 
-      // في حالة 515: بدّل الاستراتيجية وأعد المحاولة بجلسة جديدة
+      const shouldReconnect =
+        code !== 401; // 401 ~ loggedOut في أغلب الحالات
       if (code === 515) {
-        try { wipeSession(); } catch {}
+        // بدّل الاستراتيجية
         strategyIndex = (strategyIndex + 1) % BROWSERS.length;
         setTimeout(() => start(true), 4000);
-      } else {
+      } else if (shouldReconnect) {
         setTimeout(() => start(false), 5000);
+      } else {
+        // logged out => امسح الجلسة من DB لبدء ربط جديد
+        clearAuth().catch(() => {});
       }
     }
   });
+
+  return instance;
 }
 
 async function start(forceFresh = false) {
   if (forceFresh) { initPromise = null; sock = null; }
   if (initPromise) return initPromise;
-  ensureDir(SESSION_DIR);
 
   initPromise = (async () => {
-    await _startWithStrategy(strategyIndex);
+    try {
+      sock = await _startWithStrategy(strategyIndex);
+    } catch (e) {
+      console.error('Start error:', e);
+      // جرّب استراتيجية أخرى
+      strategyIndex = (strategyIndex + 1) % BROWSERS.length;
+      sock = await _startWithStrategy(strategyIndex);
+    }
+    return sock;
   })();
 
   return initPromise;
 }
 
 async function getStatus() {
-  await start();
-  return { connected, hasQR: !!qrString, strategy: BROWSERS[strategyIndex] };
+  return { connected, hasQR: !!qrString };
 }
 
 async function getQrDataUrl() {
-  await start();
   if (!qrString) return null;
   return await QRCode.toDataURL(qrString);
 }
 
-// إرسال جماعي (نص/صورة)
-async function sendBulk({ to = [], message, mediaUrl }) {
-  await start();
-  if (!connected) throw new Error('WhatsApp not connected');
-  if (!Array.isArray(to) || to.length === 0)
-    throw new Error('to must be an array');
+function normalizeMsisdn(raw) {
+  const r = String(raw || '').replace(/[^\d]/g, '');
+  if (!r) return null;
+  // لو بدأ بـ 00 حوّل إلى دولي بدون +
+  if (r.startsWith('00')) return r.slice(2);
+  // لو بدأ بـ 0 وليس لديك كود دولة، يُفضّل تمرير دوليًا من المصدر
+  return r;
+}
 
+async function sendBulk({ to = [], message = '', mediaUrl = '' }) {
+  await start();
   const results = [];
   for (const raw of to) {
-    const phone = String(raw).replace(/\s+/g, '').replace(/^\+/, '');
-    const jid = `${phone}@s.whatsapp.net`;
     try {
+      const msisdn = normalizeMsisdn(raw);
+      if (!msisdn) throw new Error('invalid number');
+      const jid = jidNormalizedUser(msisdn + '@s.whatsapp.net');
+
       if (mediaUrl) {
         const { data } = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
         await sock.sendMessage(jid, { image: Buffer.from(data), caption: message || '' });
@@ -134,36 +133,35 @@ async function sendBulk({ to = [], message, mediaUrl }) {
   return results;
 }
 
-// ✅ توليد كود الاقتران (Pairing Code) بديلًا عن QR
+// كود اقتران بديل للـ QR (يدعم حسابات معيّنة فقط)
 async function requestPairingCode(phoneE164) {
   await start();
   if (!sock || !sock.requestPairingCode) {
-    throw new Error('Pairing code not supported by this Baileys version');
+    throw new Error('Pairing code not supported by this Baileys version/account');
   }
-  // phoneE164: بصيغة دولية مثل 2547xxxxxxx بدون رمز +
-  const normalized = String(phoneE164).replace(/\D/g, '');
-  if (!normalized) throw new Error('Invalid phone number');
-  const code = await sock.requestPairingCode(normalized);
-  return code; // مثال: "123-456"
+  // phoneE164: بصيغة دولية بدون +
+  const p = String(phoneE164 || '').replace(/[^\d]/g, '');
+  if (!p) throw new Error('Invalid phone');
+  const code = await sock.requestPairingCode(p);
+  return code;
 }
 
 async function resetSession() {
-  wipeSession();
-  initPromise = null;
-  sock = null;
-  qrString = null;
+  await clearAuth();
   connected = false;
+  qrString = null;
+  sock = null;
   await start(true);
 }
 
 module.exports = {
   start,
-  init: start,                // alias للتوافق
+  init: start,
   getStatus,
   getQrDataUrl,
   sendBulk,
-  requestPairingCode,         // <-- جديد
+  requestPairingCode,
   resetSession,
-  SESSION_DIR,
+  // لأغراض التوافق مع /debug-session-path
+  SESSION_DIR: 'MONGODB'
 };
-
