@@ -4,7 +4,7 @@ import Section from '../components/Section'
 import Table from '../components/Table'
 import ActionMenu from '../components/ActionMenu'
 import { loadClients, saveClients } from '../lib/store'
-import { readExcelRows, mapRowByAliases } from "../lib/excel"
+import { readExcelRows, mapRowByAliases, exportRowsToExcel } from "../lib/excel"
 
 const CLIENT_ALIASES = {
   id: ["id", "clientid", "key"],
@@ -33,16 +33,9 @@ export default function ClientsPage() {
     { key: 'orders', title: 'Orders' },
     { key: 'lastOrder', title: 'Last Order' },
     { key: 'points', title: 'Points' },
-    { key: 'x',       title: 'Actions', render: r => (
-      <div className="flex gap-2">
-        <button className="btn" onClick={()=>editRow(r)}>Edit</button>
-        <button className="btn" onClick={()=>removeRow(r.id)}>Delete</button>
-      </div>
-    )},
   ]
 
   function editRow(r){
-    // existing edit handler (kept as placeholder)
     alert("Edit client not yet wired in this patch: " + (r.name || r.id));
   }
 
@@ -52,7 +45,7 @@ export default function ClientsPage() {
     saveClients(next)
   }
 
-  const exportExcel = () => alert('Excel export placeholder')
+  const exportExcel = () => exportRowsToExcel(filtered, columns, "clients.xlsx")
 
   async function onImportExcel(e){
     const f = e.target.files?.[0]
@@ -109,7 +102,12 @@ export default function ClientsPage() {
           </div>
         }
       >
-        <Table columns={columns} data={filtered} />
+        <Table columns={[...columns, {key:'__actions', title:'Actions', render:r=>(
+          <div className="flex gap-2">
+            <button className="btn" onClick={()=>editRow(r)}>Edit</button>
+            <button className="btn" onClick={()=>removeRow(r.id)}>Delete</button>
+          </div>
+        )}]} data={filtered} />
       </Section>
 
       <Section title="Loyalty & Notes">

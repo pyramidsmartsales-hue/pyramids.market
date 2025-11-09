@@ -2,8 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
-import { exportToExcelFromTable } from "../lib/exporters";
-import { readExcelRows, mapRowByAliases } from "../lib/excel";
+import { readExcelRows, mapRowByAliases, exportTableToExcel } from "../lib/excel";
 
 function getVal(obj, keys, def = "") {
   for (const k of keys) if (obj[k] !== undefined && obj[k] !== null) return obj[k];
@@ -26,7 +25,7 @@ export default function Products() {
   const fileRef = useRef(null);
   const tableRef = useRef(null);
 
-  const exportExcel = () => exportToExcelFromTable(tableRef.current, "products.xlsx");
+  const exportExcel = () => exportTableToExcel(tableRef.current, "products.xlsx");
 
   useEffect(() => {
     async function fetchProducts() {
@@ -58,7 +57,7 @@ export default function Products() {
         totalSales: Number(r.totalSales || 0),
         updatedAt: r.updatedAt || new Date().toISOString(),
       }));
-      // Merge strategy: upsert by name (non-empty)
+      // Merge strategy: upsert by name
       setProducts(prev => {
         const byName = Object.create(null);
         for (const p of prev) byName[(p.name || "").toLowerCase()] = p;
@@ -69,7 +68,6 @@ export default function Products() {
         }
         return Object.values(byName);
       });
-      // Reset input to allow re-importing same file
       e.target.value = "";
       alert("Imported Excel successfully into Products.");
     } catch (err) {
@@ -92,7 +90,7 @@ export default function Products() {
                 className="hidden"
                 onChange={onImportExcel}
               />
-              <Button variant="secondary" onClick={() => fileRef.current?.click()}>
+              <Button onClick={() => fileRef.current?.click()}>
                 Import Excel
               </Button>
               <Button variant="outline" onClick={exportExcel}>Export Excel</Button>

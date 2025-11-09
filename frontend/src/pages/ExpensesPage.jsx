@@ -4,7 +4,7 @@ import Section from '../components/Section'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
 import ActionMenu from '../components/ActionMenu'
-import { readExcelRows, mapRowByAliases } from "../lib/excel"
+import { readExcelRows, mapRowByAliases, exportRowsToExcel } from "../lib/excel"
 
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
@@ -44,15 +44,15 @@ export default function ExpensesPage() {
     { key:'amount', title:'Amount', render:r=>K(r.amount) },
     { key:'type',   title:'Type' },
     { key:'note',   title:'Note' },
-    { key:'x',      title:'Actions', render:r=>(
-      <div className="flex gap-2">
-        <button className="btn" onClick={()=>setModal({open:true, edit:{...r}})}>Edit</button>
-        <button className="btn" onClick={()=>setRows(rows.filter(x=>x.id!==r.id))}>Delete</button>
-      </div>
-    )},
   ]
 
-  const exportExcel = () => alert('Excel export placeholder')
+  const exportExcel = () => exportRowsToExcel(filt, [
+    {key:'name', title:'Name'},
+    {key:'date', title:'Date'},
+    {key:'amount', title:'Amount'},
+    {key:'type', title:'Type'},
+    {key:'note', title:'Note'},
+  ], "expenses.xlsx")
 
   function addNew(){
     setModal({
@@ -109,12 +109,17 @@ export default function ExpensesPage() {
               className="hidden"
               onChange={onImportExcel}
             />
-            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
             <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
+            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
           </div>
         }
       >
-        <Table columns={columns} data={filt} />
+        <Table columns={[...columns, {key:'__actions', title:'Actions', render:r=>(
+          <div className="flex gap-2">
+            <button className="btn" onClick={()=>setModal({open:true, edit:{...r}})}>Edit</button>
+            <button className="btn" onClick={()=>setRows(rows.filter(x=>x.id!==r.id))}>Delete</button>
+          </div>
+        )}]} data={filt} />
         <div className="text-right mt-2 text-sm text-mute">Total: <strong>{K(total)}</strong></div>
       </Section>
 
