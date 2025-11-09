@@ -1,234 +1,146 @@
-import React, { useMemo, useState } from 'react'
-import Section from '../components/Section'
-import Table from '../components/Table'
-import Modal from '../components/Modal'
-import ActionMenu from '../components/ActionMenu'
+import { useEffect, useRef, useState } from "react";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { exportToCSV, exportToExcelFromTable, exportTableToPDF } from "../lib/exporters";
 
-const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
+function getVal(obj, keys, def = "") {
+  for (const k of keys) if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+  return def;
+}
 
-const INITIAL = [
-  { id: 1, name: 'Green Tea',     salePrice: 675,  cost: 420, qty: 120, status: 'Active', sales: 220, updatedAt: '2025-02-01', category: 'Beverages', type: 'Tea',    discount: 0 },
-  { id: 2, name: 'Chocolate Bar', salePrice: 250,  cost: 140, qty: 88,  status: 'Active', sales: 150, updatedAt: '2025-02-02', category: 'Snacks',    type: 'Chocolate', discount: 10 },
-  { id: 3, name: 'Coffee Beans',  salePrice: 1299, cost: 900, qty: 45,  status: 'Active', sales: 60,  updatedAt: '2025-01-30', category: 'Beverages', type: 'Coffee',    discount: 0 },
-]
+export default function Products() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [csvText, setCsvText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const tableRef = useRef(null);
 
-export default function ProductsPage() {
-  const [rows, setRows]    = useState(INITIAL)
-  const [q, setQ]          = useState('')
-  const [csvText, setCsv]  = useState('')
-  const [modal, setModal]  = useState({ open:false, edit:null })
+  const apiBase = import.meta.env.VITE_API_URL || "https://pyramids-market.onrender.com/api";
 
-  const filtered = useMemo(
-    () => rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase())),
-    [rows, q]
-  )
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/products`);
+        const data = await res.json();
+        setProducts(Array.isArray(data) ? data : (data.products || []));
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, [apiBase]);
 
-  const columns = [
-    { key: 'name',       title: 'Name' },
-    { key: 'salePrice',  title: 'Sale Price',     render: r => K(r.salePrice) },
-    { key: 'cost',       title: 'Cost',           render: r => K(r.cost) },
-    { key: 'qty',        title: 'Qty',            render: r => <span className={r.qty<20?'text-red-600 font-medium':''}>{r.qty}</span> },
-    { key: 'status',     title: 'Status' },
-    { key: 'profit',     title: 'Profit/Unit',    render: r => K(r.salePrice - r.cost) },
-    { key: 'sales',      title: 'Total Sales' },
-    { key: 'updatedAt',  title: 'Last Update' },
-    { key: 'actions',    title: 'Actions',        render: r => (
-      <div className="flex gap-2">
-        <button className="btn" onClick={()=>setModal({open:true, edit:{...r}})}>Edit</button>
-        <button className="btn" onClick={()=>setRows(rows.filter(x=>x.id!==r.id))}>Delete</button>
-      </div>
-    )},
-  ]
+  const rowsForExport = products.map((p) => ({
+    Name: getVal(p, ["name"]),
+    "Sale Price": getVal(p, ["salePrice", "price"], 0),
+    Cost: getVal(p, ["costPrice", "cost"], 0),
+    Qty: getVal(p, ["quantity", "qty"], 0),
+    Status: getVal(p, ["active"], true) ? "Active" : "Inactive",
+    "Profit/Unit": (getVal(p, ["salePrice", "price"], 0) - getVal(p, ["costPrice", "cost"], 0)),
+    "Total Sales": getVal(p, ["totalSales"], 0),
+    "Last Update": p.updatedAt ? new Date(p.updatedAt).toISOString().slice(0, 10) : "",
+  }));
 
-  function openNew(){
-    setModal({open:true, edit:{
-      id: Date.now(), name:'', salePrice:0, cost:0, qty:0, status:'Active',
-      sales:0, updatedAt: new Date().toISOString().slice(0,10), category:'', type:'', discount:0, image:null
-    }})
-  }
-  function save(item){
-    setRows(prev=>{
-      const exists = prev.some(p=>p.id===item.id)
-      return exists ? prev.map(p=>p.id===item.id? item : p) : [item, ...prev]
-    })
-    setModal({open:false, edit:null})
-  }
+  const exportCsv = () => exportToCSV(rowsForExport, "products.csv");
+  const exportExcel = () => exportToExcelFromTable(tableRef.current, "products.xls");
+  const exportPDF = () => exportTableToPDF(tableRef.current, "Products");
 
-  // Exporters
-  function exportCSV(){
-    const header = ['name','salePrice','cost','qty','status','sales','updatedAt','category','type','discount']
-    const lines = [header.join(',')]
-    rows.forEach(r => lines.push(header.map(h=>r[h]).join(',')))
-    const blob = new Blob([lines.join('\n')], { type:'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href = url; a.download = 'products.csv'; a.click(); URL.revokeObjectURL(url)
-  }
-  const exportPDF   = () => alert('PDF export placeholder')
-  const exportExcel = () => alert('Excel export placeholder')
-
-  // Importers
-  function importCSVFromText(){
-    try{
-      const lines = csvText.trim().split('\n')
-      const header = lines[0].split(',').map(s=>s.trim())
-      const items = lines.slice(1).map((line,i)=>{
-        const cells = line.split(',').map(s=>s.trim())
-        const obj = {}; header.forEach((h,idx)=>obj[h]=cells[idx])
-        obj.id = Date.now()+i
-        obj.salePrice = +obj.salePrice; obj.cost = +obj.cost; obj.qty = +obj.qty; obj.sales = +(obj.sales||0); obj.discount = +(obj.discount||0)
-        return obj
-      })
-      setRows(prev => [...items, ...prev])
-      setCsv('')
-      alert('Imported!')
-    }catch(e){ alert('CSV parse error') }
-  }
-  const importPDF   = () => alert('PDF import placeholder')
-  const importExcel = () => alert('Excel import placeholder')
+  const handleImportCsvText = async () => {
+    if (!csvText.trim()) return alert("Paste CSV content first.");
+    setImporting(true);
+    try {
+      const res = await fetch(`${apiBase}/products/bulk-import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv: csvText }),
+      });
+      const data = await res.json();
+      if (data?.ok) {
+        alert(`Imported: ${data.upserted} items`);
+        const r = await fetch(`${apiBase}/products`);
+        const refreshed = await r.json();
+        setProducts(Array.isArray(refreshed) ? refreshed : (refreshed.products || []));
+        setCsvText("");
+      } else {
+        alert(data?.error || "Import failed");
+      }
+    } catch (e) { console.error(e); alert("Import failed"); }
+    finally { setImporting(false); }
+  };
 
   return (
-    <div className="space-y-6">
-      <Section
-        title="Products"
-        actions={
-          <div className="flex gap-2">
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search products..." className="rounded-xl border border-line px-3 py-2" />
-            <button className="btn btn-primary" onClick={openNew}>Add New Product</button>
-
-            <ActionMenu label="Export" options={[
-              { label: 'CSV',   onClick: exportCSV },
-              { label: 'PDF',   onClick: exportPDF },
-              { label: 'Excel', onClick: exportExcel },
-            ]}/>
-            <ActionMenu label="Import" options={[
-              { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox').scrollIntoView({behavior:'smooth'}) },
-              { label: 'PDF',         onClick: importPDF },
-              { label: 'Excel',       onClick: importExcel },
-            ]}/>
-          </div>
-        }
-      >
-        <Table columns={columns} data={filtered} />
-
-        {/* CSV paste box */}
-        <div className="mt-4" id="csvBox">
-          <details>
-            <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
-            <textarea value={csvText} onChange={e=>setCsv(e.target.value)} rows={4}
-              className="w-full border border-line rounded-xl p-2 mt-2"
-              placeholder="name,salePrice,cost,qty,status,sales,updatedAt,category,type,discount&#10;Tea,600,350,50,Active,10,2025-02-01,Beverages,Tea,0" />
-            <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
-          </details>
-        </div>
-      </Section>
-
-      {/* Per-product quick stats */}
-      <Section title="Per-product stats">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {rows.slice(0,3).map(r=>(
-            <div key={r.id} className="bg-elev p-4">
-              <div className="card-title">{r.name}</div>
-              <div className="text-sm text-mute mt-1">
-                Sales: {r.sales} • Profit/unit: {K(r.salePrice-r.cost)} • Discount: {r.discount}%
-              </div>
-              <div className="text-sm text-mute">Last update: {r.updatedAt}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Modal with clear labels */}
-      <Modal
-        open={modal.open}
-        onClose={()=>setModal({open:false, edit:null})}
-        title={modal.edit?.id ? (rows.some(r=>r.id===modal.edit.id)?'Edit product':'New product') : 'Product'}
-        footer={
-          <div className="flex justify-end gap-2">
-            <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
-            <button className="btn btn-primary" onClick={()=>save(modal.edit)}>Save</button>
-          </div>
-        }
-      >
-        {modal.edit && (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 text-sm">
-              <span className="block text-mute mb-1">Name</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., Green Tea"
-                     value={modal.edit.name}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, name:e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Sale Price (KSh)</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., 675"
-                     value={modal.edit.salePrice}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, salePrice:+e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Cost (KSh)</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., 420"
-                     value={modal.edit.cost}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, cost:+e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Quantity</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., 100"
-                     value={modal.edit.qty}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, qty:+e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Status</span>
-              <select className="border border-line rounded-xl px-3 py-2 w-full"
-                      value={modal.edit.status}
-                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, status:e.target.value}}))}>
-                <option>Active</option><option>Inactive</option>
-              </select>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Category</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., Beverages"
-                     value={modal.edit.category}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, category:e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Type</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="e.g., Tea"
-                     value={modal.edit.type}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, type:e.target.value}}))}/>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Discount %</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     placeholder="0"
-                     value={modal.edit.discount}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, discount:+e.target.value}}))}/>
-            </label>
-
-            <label className="col-span-2 text-sm">
-              <span className="block text-mute mb-1">Last update</span>
-              <input type="date" className="border border-line rounded-xl px-3 py-2 w-full"
-                     value={modal.edit.updatedAt}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, updatedAt:e.target.value}}))}/>
-            </label>
-
-            <div className="col-span-2">
-              <div className="text-sm text-mute mb-1">Images (demo)</div>
-              <input type="file" accept="image/*" onChange={e=>setModal(m=>({...m, edit:{...m.edit, image: e.target.files?.[0] ?? null}}))}/>
+    <div className="p-6 space-y-4">
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Products</h2>
+            <div className="flex gap-2">
+              <Button onClick={exportCsv}>Export CSV</Button>
+              <Button variant="outline" onClick={exportExcel}>Export Excel</Button>
+              <Button variant="outline" onClick={exportPDF}>Export PDF</Button>
             </div>
           </div>
-        )}
-      </Modal>
+
+          {loading ? (
+            <div>Loading…</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table ref={tableRef} className="min-w-full border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="p-2 border">Name</th>
+                    <th className="p-2 border">Sale Price</th>
+                    <th className="p-2 border">Cost</th>
+                    <th className="p-2 border">Qty</th>
+                    <th className="p-2 border">Status</th>
+                    <th className="p-2 border">Profit/Unit</th>
+                    <th className="p-2 border">Total Sales</th>
+                    <th className="p-2 border">Last Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p._id || p.id}>
+                      <td className="p-2 border">{getVal(p, ["name"])}</td>
+                      <td className="p-2 border">{getVal(p, ["salePrice", "price"], 0)}</td>
+                      <td className="p-2 border">{getVal(p, ["costPrice", "cost"], 0)}</td>
+                      <td className="p-2 border">{getVal(p, ["quantity", "qty"], 0)}</td>
+                      <td className="p-2 border">{getVal(p, ["active"], true) ? "Active" : "Inactive"}</td>
+                      <td className="p-2 border">
+                        {getVal(p, ["salePrice", "price"], 0) - getVal(p, ["costPrice", "cost"], 0)}
+                      </td>
+                      <td className="p-2 border">{getVal(p, ["totalSales"], 0)}</td>
+                      <td className="p-2 border">
+                        {p.updatedAt ? new Date(p.updatedAt).toISOString().slice(0, 10) : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent>
+          <h3 className="font-semibold mb-2">Import CSV (paste)</h3>
+          <p className="text-sm text-gray-600 mb-2">
+            الصق محتوى CSV هنا (أول صف عناوين الأعمدة). أعمدة مقترحة:
+            <code> name,salePrice,costPrice,quantity,active,totalSales,updatedAt </code>
+          </p>
+          <textarea
+            className="w-full border rounded p-2 h-40"
+            placeholder="name,salePrice,costPrice,quantity,active
+Green Tea,675,420,120,true"
+            value={csvText}
+            onChange={(e) => setCsvText(e.target.value)}
+          />
+          <div className="mt-2">
+            <Button onClick={handleImportCsvText} disabled={importing}>
+              {importing ? "Importing..." : "Import"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
-  )
+  );
 }
