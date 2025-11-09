@@ -1,5 +1,13 @@
+// backend/src/controllers/clientsController.js
 const Client = require('../models/Client');
 
+function parseTags(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  return String(v).split(/[|,]/).map(s => s.trim()).filter(Boolean);
+}
+
+// ==== Existing CRUD ====
 async function listClients(req, res) {
   const { search, area, tag, page = 1, limit = 50 } = req.query;
   const query = {};
@@ -49,4 +57,45 @@ async function deleteClient(req, res) {
   }
 }
 
-module.exports = { listClients, getClient, createClient, updateClient, deleteClient };
+// ==== New: bulk upsert for Excel import ====
+async function bulkUpsert(req, res) {
+  try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    if (!items.length) return res.json({ matched: 0, upserted: 0 });
+
+    const ops = [];
+    for (const it of items) {
+      const phone = String(it.phone || "").trim();
+      const doc = {
+        name: it.name || "",
+        phone,
+        area: it.area || "",
+        notes: it.notes || "",
+        tags: parseTags(it.tags),
+        lastMessageAt: it.lastMessageAt ? new Date(it.lastMessageAt) : undefined,
+        lastPurchaseAt: it.lastPurchaseAt ? new Date(it.lastPurchaseAt) : undefined,
+      };
+      if (!phone) continue;
+      ops.push({
+        updateOne: {
+          filter: { phone },
+          update: { $set: doc },
+          upsert: true
+        }
+      });
+    }
+    if (!ops.length) return res.json({ matched: 0, upserted: 0 });
+
+    const result = await Client.bulkWrite(ops, { ordered: false });
+    res.json({
+      matched: result.matchedCount ?? 0,
+      modified: result.modifiedCount ?? 0,
+      upserted: result.upsertedCount ?? 0,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'bulk upsert failed', error: e.message });
+  }
+}
+
+module.exports = { listClients, getClient, createClient, updateClient, deleteClient, bulkUpsert };

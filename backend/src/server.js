@@ -1,3 +1,4 @@
+// backend/src/server.js
 require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
@@ -13,7 +14,7 @@ app.use(express.json());
 // simple health
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok', name:'pyramids-mart-backend' }));
 
-// mount routers (skeleton)
+// mount routers
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/products', require('./routes/products'));
@@ -79,7 +80,6 @@ app.listen(PORT, () => {
   console.log(`Server started and listening on port ${PORT}`);
   console.log('NODE_ENV=', process.env.NODE_ENV || 'development');
   
-  // ✅ تعديل هنا: استبدال init() بـ start()
   setTimeout(async () => {
     try {
       const whatsappService = require('./services/whatsappService');
