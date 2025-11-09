@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react'
+// frontend/src/pages/ExpensesPage.jsx
+import React, { useMemo, useRef, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
 import ActionMenu from '../components/ActionMenu'
+import { readExcelRows, mapRowByAliases } from "../lib/excel"
 
 const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
 
@@ -12,34 +14,45 @@ const INIT = [
   { id: 3, name: 'Delivery',   date: '2025-02-04', amount: 2100,  type: 'Variable', note: '' },
 ]
 
+const EXPENSE_ALIASES = {
+  name: ["name", "expense", "expense name"],
+  date: ["date", "tx date", "expense date"],
+  amount: ["amount", "value", "cost"],
+  type: ["type", "category", "kind"],
+  note: ["note", "description", "details"],
+  id: ["id", "key"],
+}
+
 export default function ExpensesPage() {
   const [rows, setRows]   = useState(INIT)
   const [from, setFrom]   = useState('')
   const [to, setTo]       = useState('')
-  const [csvText, setCsv] = useState('')
   const [modal, setModal] = useState({ open:false, edit:null })
+  const fileRef = useRef(null)
 
   const filt = useMemo(()=>rows.filter(r=>{
     if (from && r.date < from) return false
     if (to   && r.date > to)   return false
     return true
-  }), [rows, from, to])
+  }), [rows,from,to])
 
-  const total = filt.reduce((a,b)=>a + b.amount, 0)
+  const total = useMemo(()=>filt.reduce((s,r)=>s+Number(r.amount||0),0), [filt])
 
   const columns = [
-    { key: 'name',    title: 'Name' },
-    { key: 'date',    title: 'Date' },
-    { key: 'amount',  title: 'Amount', render: r => K(r.amount) },
-    { key: 'type',    title: 'Type' },
-    { key: 'note',    title: 'Description' },
-    { key: 'x',       title: 'Actions', render: r => (
+    { key:'name',   title:'Name' },
+    { key:'date',   title:'Date' },
+    { key:'amount', title:'Amount', render:r=>K(r.amount) },
+    { key:'type',   title:'Type' },
+    { key:'note',   title:'Note' },
+    { key:'x',      title:'Actions', render:r=>(
       <div className="flex gap-2">
         <button className="btn" onClick={()=>setModal({open:true, edit:{...r}})}>Edit</button>
         <button className="btn" onClick={()=>setRows(rows.filter(x=>x.id!==r.id))}>Delete</button>
       </div>
     )},
   ]
+
+  const exportExcel = () => alert('Excel export placeholder')
 
   function addNew(){
     setModal({
@@ -56,35 +69,27 @@ export default function ExpensesPage() {
     setModal({open:false, edit:null})
   }
 
-  // Exporters
-  function exportCSV(){
-    const header = ['name','date','amount','type','note']
-    const csv = header.join(',')+'\n'+rows.map(r=>header.map(h=>r[h]).join(',')).join('\n')
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
-    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='expenses.csv'; a.click(); URL.revokeObjectURL(url)
+  async function onImportExcel(e){
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      const rowsX = await readExcelRows(f)
+      const norm = rowsX.map(r => mapRowByAliases(r, EXPENSE_ALIASES)).map(r => ({
+        id: r.id || Date.now() + Math.random(),
+        name: r.name || "",
+        date: String(r.date || "").slice(0,10),
+        amount: Number(r.amount || 0),
+        type: r.type || "Variable",
+        note: r.note || "",
+      }))
+      setRows(prev => [...norm, ...prev])
+      e.target.value = ""
+      alert("Imported Excel successfully into Expenses.")
+    } catch (err) {
+      console.error(err)
+      alert("Failed to import Excel: " + err.message)
+    }
   }
-  const exportPDF   = () => alert('PDF export placeholder')
-  const exportExcel = () => alert('Excel export placeholder')
-
-  // Importers
-  function importCSVFromText(){
-    try{
-      const lines = csvText.trim().split('\n')
-      const header = lines[0].split(',').map(s=>s.trim())
-      const items = lines.slice(1).map((line,i)=>{
-        const cells = line.split(',').map(s=>s.trim())
-        const obj = {}; header.forEach((h,idx)=>obj[h]=cells[idx])
-        obj.id = Date.now()+i
-        obj.amount = +obj.amount
-        return obj
-      })
-      setRows(prev => [...items, ...prev])
-      setCsv('')
-      alert('Imported!')
-    }catch(e){ alert('CSV parse error') }
-  }
-  const importPDF   = () => alert('PDF import placeholder')
-  const importExcel = () => alert('Excel import placeholder')
 
   return (
     <div className="space-y-6">
@@ -97,46 +102,26 @@ export default function ExpensesPage() {
             <button className="btn" onClick={()=>{setFrom(''); setTo('')}}>Clear</button>
             <button className="btn btn-primary" onClick={addNew}>Add Expense</button>
 
-            <ActionMenu label="Export" options={[
-              { label: 'CSV', onClick: exportCSV },
-              { label: 'PDF', onClick: exportPDF },
-              { label: 'Excel', onClick: exportExcel },
-            ]}/>
-            <ActionMenu label="Import" options={[
-              { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox-exp').scrollIntoView({behavior:'smooth'}) },
-              { label: 'PDF', onClick: importPDF },
-              { label: 'Excel', onClick: importExcel },
-            ]}/>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={onImportExcel}
+            />
+            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
+            <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
           </div>
         }
       >
         <Table columns={columns} data={filt} />
-        <div className="mt-4 text-right font-semibold">Total: {K(total)}</div>
-
-        <div className="mt-4" id="csvBox-exp">
-          <details>
-            <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
-            <textarea value={csvText} onChange={e=>setCsv(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,date,amount,type,note&#10;Rent,2025-02-01,50000,Fixed,..." />
-            <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
-          </details>
-        </div>
+        <div className="text-right mt-2 text-sm text-mute">Total: <strong>{K(total)}</strong></div>
       </Section>
 
-      {/* Modal */}
-      <Modal
-        open={modal.open}
-        onClose={()=>setModal({open:false, edit:null})}
-        title={modal.edit?.id ? (rows.some(r=>r.id===modal.edit.id)?'Edit expense':'New expense') : 'Expense'}
-        footer={
-          <div className="flex justify-end gap-2">
-            <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
-            <button className="btn btn-primary" onClick={()=>save(modal.edit)}>Save</button>
-          </div>
-        }
-      >
+      <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={modal.edit?'Edit Expense':'Add Expense'}>
         {modal.edit && (
           <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 text-sm">
+            <label className="text-sm">
               <span className="block text-mute mb-1">Name</span>
               <input className="border border-line rounded-xl px-3 py-2 w-full"
                      value={modal.edit.name}
@@ -151,10 +136,10 @@ export default function ExpensesPage() {
             </label>
 
             <label className="text-sm">
-              <span className="block text-mute mb-1">Amount (KSh)</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
+              <span className="block text-mute mb-1">Amount</span>
+              <input className="border border-line rounded-xl px-3 py-2 w-full"
                      value={modal.edit.amount}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, amount:+e.target.value}}))}/>
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, amount:e.target.value}}))}/>
             </label>
 
             <label className="text-sm">

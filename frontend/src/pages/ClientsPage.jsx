@@ -1,106 +1,120 @@
-import React, { useEffect, useMemo, useState } from 'react'
+// frontend/src/pages/ClientsPage.jsx
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import ActionMenu from '../components/ActionMenu'
 import { loadClients, saveClients } from '../lib/store'
+import { readExcelRows, mapRowByAliases } from "../lib/excel"
+
+const CLIENT_ALIASES = {
+  id: ["id", "clientid", "key"],
+  name: ["name", "client", "customer", "client name"],
+  phone: ["phone", "mobile", "msisdn", "tel"],
+  orders: ["orders", "ordercount", "total orders"],
+  lastOrder: ["lastorder", "last order", "lastorderdate"],
+  points: ["points", "loyalty", "score"],
+}
 
 export default function ClientsPage() {
-  const [rows, setRows]   = useState(loadClients())
-  const [q, setQ]         = useState('')
-  const [csvText, setCsv] = useState('')
+  const [rows, setRows] = useState(loadClients())
+  const [q, setQ]       = useState('')
+  const fileRef = useRef(null)
 
-  // keep in sync with localStorage (e.g., from POS confirm)
   useEffect(()=>{ setRows(loadClients()) }, [])
 
   const filtered = useMemo(
-    ()=>rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) || r.phone.includes(q)),
+    ()=>rows.filter(r => (r.name || "").toLowerCase().includes(q.toLowerCase()) || (r.phone || "").includes(q)),
     [rows, q]
   )
 
   const columns = [
-    { key: 'name',      title: 'Name' },
-    { key: 'phone',     title: 'Phone' },
-    { key: 'orders',    title: 'Orders' },
+    { key: 'name',   title: 'Name' },
+    { key: 'phone',  title: 'Phone' },
+    { key: 'orders', title: 'Orders' },
     { key: 'lastOrder', title: 'Last Order' },
-    { key: 'points',    title: 'Loyalty Points', render: r => (
-      <div className="flex items-center gap-2">
-        <span>{r.points}</span>
-        <button className="btn" onClick={()=>updatePoints(r.id, +10)}>+10</button>
-        <button className="btn" onClick={()=>updatePoints(r.id, -10)}>-10</button>
+    { key: 'points', title: 'Points' },
+    { key: 'x',       title: 'Actions', render: r => (
+      <div className="flex gap-2">
+        <button className="btn" onClick={()=>editRow(r)}>Edit</button>
+        <button className="btn" onClick={()=>removeRow(r.id)}>Delete</button>
       </div>
     )},
   ]
 
-  function updatePoints(id, delta){
-    const next = rows.map(x => x.id===id ? {...x, points: Math.max(0, (x.points||0)+delta)} : x)
-    setRows(next); saveClients(next)
+  function editRow(r){
+    // existing edit handler (kept as placeholder)
+    alert("Edit client not yet wired in this patch: " + (r.name || r.id));
   }
 
-  // Export
-  function exportCSV(){
-    const header = ['name','phone','orders','lastOrder','points']
-    const csv = header.join(',')+'\n'+filtered.map(r=>header.map(h=>r[h]).join(',')).join('\n')
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'})
-    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='clients.csv'; a.click(); URL.revokeObjectURL(url)
+  function removeRow(id){
+    const next = rows.filter(x=>x.id!==id)
+    setRows(next)
+    saveClients(next)
   }
-  const exportPDF   = () => alert('PDF export placeholder')
+
   const exportExcel = () => alert('Excel export placeholder')
 
-  // Import
-  function importCSVFromText(){
-    try{
-      const lines = csvText.trim().split('\n')
-      const header = lines[0].split(',').map(s=>s.trim())
-      const items = lines.slice(1).map((line,i)=>{
-        const cells = line.split(',').map(s=>s.trim())
-        const obj = {}; header.forEach((h,idx)=>obj[h]=cells[idx])
-        obj.id = Date.now()+i
-        obj.orders = +obj.orders; obj.points = +obj.points
-        return obj
+  async function onImportExcel(e){
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      const rowsX = await readExcelRows(f)
+      const norm = rowsX.map(r => mapRowByAliases(r, CLIENT_ALIASES)).map(r => ({
+        id: r.id || String(Date.now() + Math.random()),
+        name: r.name || "",
+        phone: String(r.phone || ""),
+        orders: Number(r.orders || 0),
+        lastOrder: String(r.lastOrder || ""),
+        points: Number(r.points || 0),
+      }))
+      // Merge by phone if present, else by id
+      setRows(prev => {
+        const byKey = Object.create(null)
+        for (const p of prev) {
+          const key = (p.phone && p.phone.trim()) ? ("phone:" + p.phone.trim()) : ("id:" + (p.id || ""))
+          byKey[key] = p
+        }
+        for (const n of norm) {
+          const k = (n.phone && n.phone.trim()) ? ("phone:" + n.phone.trim()) : ("id:" + (n.id || ""))
+          byKey[k] = { ...(byKey[k] || {}), ...n }
+        }
+        const next = Object.values(byKey)
+        saveClients(next)
+        return next
       })
-      const next = [...items, ...rows]
-      setRows(next); saveClients(next); setCsv('')
-      alert('Imported!')
-    }catch(e){ alert('CSV parse error') }
+      e.target.value = ""
+      alert("Imported Excel successfully into Clients.")
+    } catch (err) {
+      console.error(err)
+      alert("Failed to import Excel: " + err.message)
+    }
   }
-  const importPDF   = () => alert('PDF import placeholder')
-  const importExcel = () => alert('Excel import placeholder')
 
   return (
     <div className="space-y-6">
       <Section
         title="Clients"
         actions={
-          <div className="flex gap-2">
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search client..." className="rounded-xl border border-line px-3 py-2" />
-            <ActionMenu label="Export" options={[
-              { label: 'CSV', onClick: exportCSV },
-              { label: 'PDF', onClick: exportPDF },
-              { label: 'Excel', onClick: exportExcel },
-            ]}/>
-            <ActionMenu label="Import" options={[
-              { label: 'CSV (paste)', onClick: ()=>document.getElementById('csvBox-clients').scrollIntoView({behavior:'smooth'}) },
-              { label: 'PDF', onClick: importPDF },
-              { label: 'Excel', onClick: importExcel },
-            ]}/>
+          <div className="flex items-center gap-2">
+            <input className="border border-line rounded-xl px-3 py-2" placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} />
+            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={onImportExcel}
+            />
+            <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
           </div>
         }
       >
         <Table columns={columns} data={filtered} />
       </Section>
 
-      <Section title="Client Purchases (demo)">
+      <Section title="Loyalty & Notes">
         <div className="text-mute">Purchase history UI placeholder — to connect with backend later.</div>
       </Section>
-
-      {/* CSV paste box */}
-      <div className="mt-4" id="csvBox-clients">
-        <details>
-          <summary className="cursor-pointer text-sm text-mute">Import CSV (paste content)</summary>
-        <textarea value={csvText} onChange={e=>setCsv(e.target.value)} rows={4} className="w-full border border-line rounded-xl p-2 mt-2" placeholder="name,phone,orders,lastOrder,points&#10;John,+2547...,3,2025-02-01,50" />
-          <button className="btn mt-2" onClick={importCSVFromText}>Import</button>
-        </details>
-      </div>
     </div>
   )
 }
