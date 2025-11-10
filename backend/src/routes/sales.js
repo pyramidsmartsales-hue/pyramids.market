@@ -1,103 +1,39 @@
+// backend/src/routes/sales.js
 const router = require('express').Router();
 const Sale = require('../models/Sale');
 const Client = require('../models/Client');
 const axios = require('axios');
 const csvtojson = require('csvtojson');
 
-const canon = s => String(s||'').toLowerCase().trim();
-const num = (x, def=0) => {
-  const n = Number(String(x||'').replace(/[, ]/g,''));
+// ---------- Helpers ----------
+const canon = s => String(s || '').toLowerCase().trim();
+const num = (x, def = 0) => {
+  const n = Number(String(x ?? '').replace(/[, ]/g, ''));
   return Number.isFinite(n) ? n : def;
 };
+// تاريخ فقط (UTC: 00:00)
 const toDateOnly = v => {
   if (!v) return null;
-  let s = String(v).trim().replace(/-/g,'/');
+  let s = String(v).trim();
+  // دعم dd/mm/yyyy
   const p = s.split('/');
-  let d = null;
+  let d;
   if (p.length === 3) {
-    const [dd, mm, yy] = p; d = new Date(`${yy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`);
+    const [dd, mm, yy] = p;
+    d = new Date(`${yy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`);
   } else {
     d = new Date(s);
   }
   if (isNaN(d?.getTime())) return null;
-  d.setUTCHours(0,0,0,0);
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 };
-const makeKey = (inv, clientName, dateOnly, total) => (inv||'') || `${canon(clientName)}|${dateOnly?.toISOString()?.slice(0,10)||''}|${num(total,0)}`;
+const makeKey = (inv, clientName, dateOnly, total) =>
+  (inv || '') || `${canon(clientName)}|${dateOnly?.toISOString()?.slice(0, 10) || ''}|${num(total, 0)}`;
 
-// List (paged, q)
+// ---------- List (paged, q) ----------
 router.get('/', async (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page || '1', 10));
-  const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '20', 10)));
-  const q = String(req.query.q || '').trim();
-
-  const filter = q ? { $or: [{ invoiceNumber: new RegExp(q, 'i') }, { clientName: new RegExp(q, 'i') }] } : {};
-  const [rows, count] = await Promise.all([
-    Sale.find(filter).sort({ createdAt: -1 }).skip((page-1)*limit).limit(limit).lean(),
-    Sale.countDocuments(filter)
-  ]);
-  res.json({ rows, count, page, limit });
-});
-
-// Details
-router.get('/:id', async (req, res) => {
-  const sale = await Sale.findById(req.params.id).lean();
-  if (!sale) return res.status(404).json({ message: 'Not found' });
-  res.json(sale);
-});
-
-// Sync from Google CSV (mirror)
-router.post('/sync/google-csv', async (req, res) => {
   try {
-    const url = process.env.GSHEET_SALES_CSV_URL;
-    if (!url) return res.status(400).json({ error: 'Missing GSHEET_SALES_CSV_URL' });
-    const mode = String(req.query.mode || 'mirror').toLowerCase();
-
-    const { data: csv } = await axios.get(url);
-    const rows = await csvtojson().fromString(csv);
-
-    const normalize = (r) => {
-      const m = {}; for (const k of Object.keys(r)) m[canon(k)] = r[k];
-
-      const invoiceNumber = (m['invoicenumber'] || m['invoice'] || '').toString().trim();
-      const clientName = (m['clientname'] || m['client'] || m['customer'] || '').toString().trim();
-      const total = num(m['total'] || m['amount'] || m['grandtotal'], 0);
-      const profit = num(m['profit'] || m['margin'] || 0, 0);
-      const pm = (m['paymentmethod'] || m['payment'] || 'CASH').toString().trim().toUpperCase();
-
-      // تاريخ فقط
-      const d = toDateOnly(m['date'] || m['createdat'] || m['time'] || '');
-      const key = makeKey(invoiceNumber, clientName, d, total);
-
-      return {
-        key,
-        invoiceNumber: invoiceNumber || undefined,
-        clientName,
-        total,
-        profit,
-        paymentMethod: pm,
-        createdAt: d || new Date(),
-      };
-    };
-
-    const normalized = rows.map(normalize).filter(x => x.key);
-
-    // Upsert
-    for (const n of normalized) {
-      const { key, ...doc } = n;
-      const where = doc.invoiceNumber ? { invoiceNumber: doc.invoiceNumber } : { clientName: doc.clientName, createdAt: doc.createdAt, total: doc.total };
-      await Sale.updateOne(
-        where,
-        { $set: doc, $setOnInsert: { createdAt: doc.createdAt } },
-        { upsert: true }
-      );
-    }
-
-    // Mirror delete
-    let deleted = 0;
-    if (mode === 'mirror') {
-      const keys = new Set(normalized.map(n => n.key));
-      const all = await Sale.find({}, { _id:1, invoiceNumber:1, clientName:1, createdAt:1, total:1 }).lean();
-      const toDel = all.filter(s => !keys.has(makeKey(s.invoiceNumber, s.clientName, toDateOnly(s.createdAt), s.total)));
-      if (toDel.length) {
-        await S
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '20', 10)));
+    const q = String(req.query.q || '').trim();
