@@ -8,7 +8,7 @@ const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\/+$/,"");
 const API_BASE = API_ORIG.replace(/\/api$/,"");
 const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`;
 
-const K = n => `KSh ${Number(n).toLocaleString('en-KE')}`
+const K = n => `KSh ${Number(n||0).toLocaleString('en-KE')}`
 
 export default function ExpensesPage() {
   const [rows, setRows]   = useState([])
@@ -34,8 +34,9 @@ export default function ExpensesPage() {
 
   const total = useMemo(()=>filt.reduce((s,r)=>s+Number(r.amount||0),0), [filt])
 
+  // ✅ Use "description" (backend’s field), not "name"
   const columns = [
-    { key:'name',   title:'Name' },
+    { key:'description', title:'Description' },
     { key:'date',   title:'Date', render:r=>String(r.date||'').slice(0,10) },
     { key:'amount', title:'Amount', render:r=>K(r.amount) },
     { key:'notes',  title:'Notes' },
@@ -43,27 +44,31 @@ export default function ExpensesPage() {
 
   const exportExcel = async () => {
     const { exportRowsToExcel } = await import('../lib/excel');
-    exportRowsToExcel(filt, [
-      {key:'name', title:'Name'},
-      {key:'date', title:'Date'},
-      {key:'amount', title:'Amount'},
-      {key:'notes', title:'Notes'},
+    exportRowsToExcel(filt.map(r => ({
+      Description: r.description || '',
+      Date: String(r.date||'').slice(0,10),
+      Amount: Number(r.amount||0),
+      Notes: r.notes || ''
+    })), [
+      {key:'Description', title:'Description'},
+      {key:'Date', title:'Date'},
+      {key:'Amount', title:'Amount'},
+      {key:'Notes', title:'Notes'},
     ], "expenses.xlsx")
   }
 
   function addNew(){
     setModal({
       open: true,
-      edit: { name:'', date: new Date().toISOString().slice(0,10), amount:0, category:'', notes:'' }
+      edit: { description:'', date: new Date().toISOString().slice(0,10), amount:0, category:'', notes:'' }
     })
   }
 
   async function save(item){
     try {
-      // Google Sheets backend: only POST append for now
       const payload = {
         date: String(item.date||'').slice(0,10),
-        description: item.name || '',
+        description: item.description || '',
         amount: Number(item.amount || 0),
         category: item.category || '',
         notes: item.notes || '',
@@ -85,21 +90,15 @@ export default function ExpensesPage() {
     const f = e.target.files?.[0]
     if (!f) return
     try {
-      const { readExcelRows, mapRowByAliases } = await import('../lib/excel');
-      const EXPENSE_ALIASES = {
-        name: ["name","expense","expense name","description","details","note","notes"],
-        date: ["date","tx date","expense date"],
-        amount: ["amount","value","cost"],
-        category: ["type","category","kind"],
-      };
-      const rowsX = await readExcelRows(f)
-      const norm = rowsX.map(r => mapRowByAliases(r, EXPENSE_ALIASES)).map(r => ({
-        date: String(r.date || "").slice(0,10),
-        description: r.name || r.description || "",
-        amount: Number(r.amount || 0),
-        category: r.category || "",
-        notes: r.notes || "",
-      }))
+      const { readExcelRows } = await import('../lib/excel');
+      const rowsX = await readExcelRows(f);
+      const norm = rowsX.map(r => ({
+        description: r.Description || r.Name || r['Expense Name'] || r.Expense || '',
+        date: String(r.Date || '').slice(0,10),
+        amount: Number(r.Amount || 0),
+        category: r.Category || '',
+        notes: r.Notes || '',
+      }));
       for (const it of norm) {
         if (!it.date || !it.description) continue;
         await fetch(url('/api/expenses/google'), {
@@ -133,13 +132,13 @@ export default function ExpensesPage() {
         <div className="text-right mt-2 text-sm text-mute">Total: <strong>{K(total)}</strong></div>
       </Section>
 
-      <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={modal.edit?'Add Expense':'Add Expense'}>
+      <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={'Add Expense'}>
         {modal.edit && (
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Name</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.name}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, name:e.target.value}}))}/>
+            <label className="text-sm col-span-2">
+              <span className="block text-mute mb-1">Description</span>
+              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.description}
+                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, description:e.target.value}}))}/>
             </label>
             <label className="text-sm">
               <span className="block text-mute mb-1">Date</span>
@@ -153,7 +152,7 @@ export default function ExpensesPage() {
             </label>
             <label className="col-span-2 text-sm">
               <span className="block text-mute mb-1">Notes</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full" placeholder="Optional note" value={modal.edit.notes || ''}
+              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.notes || ''}
                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, notes:e.target.value}}))}/>
             </label>
             <div className="col-span-2 flex gap-2 justify-end">
