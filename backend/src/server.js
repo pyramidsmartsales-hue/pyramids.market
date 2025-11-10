@@ -7,8 +7,13 @@ import helmet from 'helmet';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import User from './models/User.js';
+
+// ===== إصلاح __dirname في ESM =====
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // إنشاء التطبيق
 const app = express();
