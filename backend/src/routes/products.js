@@ -7,10 +7,10 @@ const csvtojson = require('csvtojson');
 
 // ===== Helpers =====
 const num = (x, def = 0) => {
-  const n = Number(String(x).toString().replace(/[, ]/g,''));
+  const n = Number(String(x).toString().replace(/[, ]/g, ''));
   return Number.isFinite(n) ? n : def;
 };
-const canon = (s='') => String(s).toLowerCase().replace(/\s+/g,'').trim();
+const canon = (s = '') => String(s).toLowerCase().replace(/\s+/g, '').trim();
 
 // ========= CRUD =========
 router.get('/', async (req, res) => {
@@ -64,8 +64,8 @@ router.post('/import/excel', async (req, res) => {
 
     let upserted = 0;
     for (const r of items) {
-      const name     = String(r.name || '').trim();
-      const barcode  = String(r.barcode || '').trim();
+      const name = String(r.name || '').trim();
+      const barcode = String(r.barcode || '').trim();
       if (!name && !barcode) continue;
 
       const update = {
@@ -106,37 +106,59 @@ router.post('/sync/google-csv', async (req, res) => {
     const { data: csv } = await axios.get(url);
     const rows = await csvtojson().fromString(csv);
 
-    // طبيعـة رؤوس الأعمدة
+    // تطبيع رؤوس الأعمدة + تحويل القيم
     const normalize = (r) => {
-      const m = Object.fromEntries(Object.keys(r).map(k => [canon(k), r[k]]));
-      const name     = (m['name'] || m['product'] || m['productname'] || '').toString().trim();
-      const barcode  = (m['barcode'] || m['code'] || m['sku'] || '').toString().trim();
-      const sale     = m['saleprice'] || m['price'] || m['sellingprice'] || m['unitprice'];
-      const cost     = m['cost'] || m['costprice'] || m['purchaseprice'] || m['buyprice'];
-      const qty      = m['quantity'] || m['qty'] || m['stock'];
+      const m = Object.fromEntries(Object.keys(r).map((k) => [canon(k), r[k]]));
+
+      const name = (m['name'] || m['product'] || m['productname'] || '').toString().trim();
+      const barcode = (m['barcode'] || m['code'] || m['sku'] || '').toString().trim();
+      const sale = m['saleprice'] || m['price'] || m['sellingprice'] || m['unitprice'];
+      const cost = m['cost'] || m['costprice'] || m['purchaseprice'] || m['buyprice'];
+      const qty = m['quantity'] || m['qty'] || m['stock'];
       const category = m['category'] || m['cat'];
-      const expiry   = m['expiry'] || m['expirydate'] || m['exp'];
+
+      // ===== Expiry: يدعم DD/MM/YYYY أو DD-MM-YYYY ويُرجع Date أو null
+      let expiryRaw = m['expiry'] || m['expirydate'] || m['exp'] || '';
+      let expiry = null;
+      if (expiryRaw) {
+        // وحّد الفاصل إلى '/'
+        let s = String(expiryRaw).trim().replace(/-/g, '/');
+        const parts = s.split('/');
+        if (parts.length === 3) {
+          const [d, mth, y] = parts;
+          const iso = `${y}-${String(mth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const parsed = new Date(iso);
+          if (!isNaN(parsed.getTime())) expiry = parsed;
+        } else {
+          const parsed = new Date(s);
+          if (!isNaN(parsed.getTime())) expiry = parsed;
+        }
+      }
+
+      // مفتاح المقارنة للشيت (لا نكتبه في الـDB)
+      const key = barcode || name;
 
       return {
-        key: barcode || name, // مفتاح المقارنة
+        key,
         name,
         barcode: barcode || undefined,
         salePrice: num(sale, 0),
         costPrice: num(cost, 0),
         quantity: num(qty, 0),
         category: category || '',
-        expiry: expiry ? new Date(String(expiry)) : null,
+        expiry, // لا نعيد تحويله لاحقًا
       };
     };
 
-    const normalized = rows.map(normalize).filter(x => x.key);
+    const normalized = rows.map(normalize).filter((x) => x.key);
 
     // 1) Upsert الكل
     for (const n of normalized) {
-      const where = n.barcode ? { barcode: n.barcode } : { name: n.name };
+      const { key, ...doc } = n; // لا تُدخل key في الـDB
+      const where = doc.barcode ? { barcode: doc.barcode } : { name: doc.name };
       await Product.updateOne(
         where,
-        { $set: { ...n, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
+        { $set: { ...doc, updatedAt: new Date() }, $setOnInsert: { createdAt: new Date() } },
         { upsert: true }
       );
     }
@@ -144,14 +166,14 @@ router.post('/sync/google-csv', async (req, res) => {
     // 2) حذف العناصر غير الموجودة في الشيت (mirror)
     let deleted = 0;
     if (mode === 'mirror') {
-      const keysInSheet = new Set(normalized.map(n => n.key));
+      const keysInSheet = new Set(normalized.map((n) => n.key));
       const all = await Product.find({}, { _id: 1, name: 1, barcode: 1 }).lean();
-      const toDelete = all.filter(p => {
+      const toDelete = all.filter((p) => {
         const key = (p.barcode && p.barcode.trim()) || (p.name && p.name.trim());
         return key && !keysInSheet.has(key);
       });
       if (toDelete.length) {
-        await Product.deleteMany({ _id: { $in: toDelete.map(x => x._id) } });
+        await Product.deleteMany({ _id: { $in: toDelete.map((x) => x._id) } });
         deleted = toDelete.length;
       }
     }
