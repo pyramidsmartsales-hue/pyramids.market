@@ -43,6 +43,11 @@ app.use(express.json());
 // simple health
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok', name:'pyramids-mart-backend' }));
 
+// ✅ رد للمسار الأساسي لمنع "Cannot GET /"
+app.get('/', (req, res) => {
+  res.redirect('/api/healthz');
+});
+
 // mount routers (مركّبة ومؤكَّدة من ملفك)
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clients'));
@@ -51,7 +56,8 @@ app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/sales', require('./routes/sales'));
 app.use('/api/whatsapp', require('./routes/whatsapp'));
 app.use('/api/uploads', require('./routes/uploads'));
-app.use('/api/stats', require('./routes/stats')); // ← الإضافة الوحيدة المطلوبة (توصيل راوتر الإحصائيات)
+app.use('/api/stats', require('./routes/stats'));
+app.use('/api/pos', require('./routes/pos')); // ✅ توصيل راوتر POS
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 // Error handlers

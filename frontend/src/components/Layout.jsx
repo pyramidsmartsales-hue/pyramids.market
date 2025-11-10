@@ -9,7 +9,7 @@ function Logo({ size = 88 }) {
       alt="Pyramids Market"
       width={size}
       height={size}
-      className="object-contain" // لا يوجد إطار دائري
+      className="object-contain"
       onError={(e) => {
         e.currentTarget.outerHTML =
           `<div style="width:${size}px;height:${size}px" class="grid place-items-center text-cocoa font-bold">PM</div>`
@@ -39,6 +39,7 @@ const NAV = [
   { to: '/expenses', label: 'Expenses' },
   { to: '/pos', label: 'POS' },
   { to: '/clients', label: 'Clients' },
+  { to: '/sales', label: 'Sales' }, // ✅ إضافة رابط المبيعات
 ]
 
 export default function Layout({ children }) {
@@ -46,7 +47,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-base text-ink">
-      {/* ✅ الشريط العلوي: شعار (44px) في المنتصف + ساعة على اليمين */}
+      {/* ✅ الشريط العلوي */}
       <header className="sticky top-0 z-30 bg-white/70 backdrop-blur border-b border-line">
         <div className="h-20 px-4 md:px-6 grid grid-cols-3 items-center">
           <div className="flex items-center gap-3">
@@ -54,7 +55,7 @@ export default function Layout({ children }) {
           </div>
 
           <div className="flex flex-col items-center justify-center">
-            <Logo size={44} /> {/* شعار علوي صغير */}
+            <Logo size={44} />
             <span className="mt-1 font-semibold">Pyramids Market</span>
           </div>
 
@@ -72,7 +73,7 @@ export default function Layout({ children }) {
           }`}
         >
           <div className="flex flex-col items-center mb-6">
-            <Logo size={88} /> {/* شعار جانبي كبير */}
+            <Logo size={88} />
             <div className="font-semibold mt-2">Pyramids Market</div>
           </div>
 

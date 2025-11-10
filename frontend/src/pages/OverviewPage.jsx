@@ -70,7 +70,13 @@ export default function OverviewPage() {
 
   const { apiTotals, fetchTotals } = useOverviewTotals()
 
-  const dataset = range === 'custom' ? customData : DATA[range]
+  // ✅ لا نعرض بيانات تجريبية إذا لم توجد بيانات فعلية من الـAPI
+  const hasRealTotals =
+    (apiTotals.totalSales > 0) ||
+    (apiTotals.totalExpenses > 0) ||
+    (apiTotals.netProfit > 0);
+
+  const dataset = range === 'custom' ? customData : (hasRealTotals ? DATA[range] : [])
 
   const totals = useMemo(() => {
     const s = dataset.reduce((a,b)=>a+b.sales,0)
