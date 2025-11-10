@@ -1,55 +1,55 @@
 // ===== تحميل ملف البيئة .env =====
-import 'dotenv/config';
+require('dotenv').config();
 
 // ===== المكتبات الأساسية =====
-import express from 'express';
-import helmet from 'helmet';
-import cors from 'cors';
-import mongoose from 'mongoose';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import bcrypt from 'bcryptjs';
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const mongoose = require('mongoose');
+const path = require('path');
+const bcrypt = require('bcryptjs');
 
-// ===== إصلاح __dirname في ESM =====
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ===== Helper: تحميل ESM/CJS بشكل آمن (يرجّع default أو الموديول) =====
-const load = async (p) => {
-  const m = await import(p);
-  return m.default || m;
-};
-
-// ===== إنشاء التطبيق =====
+// إنشاء التطبيق
 const app = express();
 app.use(helmet());
 
 // ===== CORS (مرن ويغطي نفس الدومين + الموقع القديم واللوكال) =====
+/*
+  لتعديل القائمة بدون تغيير الكود:
+  CORS_ALLOWLIST=https://pyramids-market.onrender.com,https://pyramids-market-site.onrender.com,http://localhost:5173
+*/
 const defaultAllow =
   'https://pyramids-market.onrender.com,https://pyramids-market-site.onrender.com,http://localhost:5173';
 
 const allowlist = (process.env.CORS_ALLOWLIST || defaultAllow)
   .split(',')
-  .map(s => s.trim())
+  .map((s) => s.trim())
   .filter(Boolean);
 
 // اجعل الاستجابة حساسة للاختلاف في Origin
-app.use((req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
+app.use((req, res, next) => {
+  res.setHeader('Vary', 'Origin');
+  next();
+});
 
 const corsOptions = {
   origin(origin, cb) {
-    if (!origin) return cb(null, true); // healthchecks etc.
+    // اسمح بطلبات بدون Origin (healthchecks، نفس-الأصل أحيانًا)
+    if (!origin) return cb(null, true);
     try {
+      const hostname = new URL(origin).hostname;
       if (allowlist.includes(origin)) return cb(null, true);
-      if (/\.onrender\.com$/.test(new URL(origin).hostname)) return cb(null, true);
-    } catch {}
+      // اسمح بدومينات onrender الخاصة بنا (احتياطي)
+      if (/\.onrender\.com$/.test(hostname)) return cb(null, true);
+    } catch (e) {}
     return cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
-  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
-  allowedHeaders: ['Content-Type','Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 app.use(cors(corsOptions));
+// دعم preflight
 app.options('*', cors(corsOptions));
 
 // ============ JSON ============
@@ -61,15 +61,15 @@ app.get('/api/healthz', (req, res) =>
 );
 
 // ============ API Routers ============
-app.use('/api/auth', await load('./routes/auth.js'));
-app.use('/api/clients', await load('./routes/clients.js'));
-app.use('/api/products', await load('./routes/products.js'));
-app.use('/api/expenses', await load('./routes/expenses.js'));
-app.use('/api/sales', await load('./routes/sales.js'));
-app.use('/api/whatsapp', await load('./routes/whatsapp.js'));
-app.use('/api/uploads', await load('./routes/uploads.js'));
-app.use('/api/stats', await load('./routes/stats.js'));
-app.use('/api/pos', await load('./routes/pos.js'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/clients', require('./routes/clients'));
+app.use('/api/products', require('./routes/products'));
+app.use('/api/expenses', require('./routes/expenses'));
+app.use('/api/sales', require('./routes/sales'));
+app.use('/api/whatsapp', require('./routes/whatsapp'));
+app.use('/api/uploads', require('./routes/uploads'));
+app.use('/api/stats', require('./routes/stats'));
+app.use('/api/pos', require('./routes/pos'));
 
 // ملفات الـuploads العامة (لو لزم الأمر)
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
@@ -78,74 +78,85 @@ app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 // __dirname يشير إلى backend/src لذلك dist في ../../frontend/dist
 const distDir = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(distDir));
+
+// أي مسار لا يبدأ بـ /api يرجّع index.html (تطبيق SPA)
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(distDir, 'index.html'));
 });
 
+// ============ أخطاء غير ملتقطة ============
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION ➜', err && err.stack ? err.stack : err);
+});
+process.on('unhandledRejection', (reason, p) => {
+  console.error('UNHANDLED REJECTION at Promise', p, 'reason:', reason);
+});
+
 // ============ MongoDB ============
 const MONGO = process.env.MONGO_URI || 'mongodb://localhost:27017/pyramidsmart';
-mongoose.connect(MONGO)
+mongoose
+  .connect(MONGO) // لا نستخدم خيارات قديمة
   .then(() => {
     console.log('Mongo connected');
-    ensureAdmin().catch(e =>
-      console.error('ensureAdmin failed:', e?.message || e)
+    ensureAdmin().catch((e) =>
+      console.error('ensureAdmin failed:', e && e.message ? e.message : e)
     );
   })
-  .catch(err => console.error('Mongo connection error:', err?.message || err));
+  .catch((err) => {
+    console.error('Mongo connection error:', err && err.message ? err.message : err);
+  });
 
 // ============ Bootstrap Admin ============
-let User;
-try {
-  const m = await import('./models/User.js'); // قد يكون CJS أو ESM
-  User = m.default || m.User || m;
-} catch (e) {
-  console.error('Failed to load User model:', e?.message || e);
-  throw e;
-}
-
+const User = require('./models/User');
 async function ensureAdmin() {
-  const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
-  console.log('ENV check -> ADMIN_EMAIL:', !!ADMIN_EMAIL, 'ADMIN_PASSWORD:', !!ADMIN_PASSWORD);
-  if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPass = process.env.ADMIN_PASSWORD;
+  console.log(
+    'ENV check -> ADMIN_EMAIL:',
+    !!adminEmail,
+    'ADMIN_PASSWORD:',
+    !!adminPass
+  );
+  if (!adminEmail || !adminPass) {
     console.log('ADMIN_EMAIL or ADMIN_PASSWORD not provided — skipping admin bootstrap.');
     return;
   }
   try {
-    const exists = await User.findOne({ email: ADMIN_EMAIL.toLowerCase() });
+    const exists = await User.findOne({ email: adminEmail.toLowerCase() });
     if (!exists) {
-      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+      const hash = await bcrypt.hash(adminPass, 10);
       await new User({
         name: 'Owner',
-        email: ADMIN_EMAIL.toLowerCase(),
+        email: adminEmail.toLowerCase(),
         passwordHash: hash,
         role: 'owner',
       }).save();
-      console.log('Created initial admin user:', ADMIN_EMAIL);
+      console.log('Created initial admin user:', adminEmail);
     } else {
       console.log('Admin user already exists.');
     }
   } catch (err) {
-    console.error('Admin creation error', err?.message || err);
+    console.error('Admin creation error', err && err.message ? err.message : err);
   }
 }
 
 // ============ Start ============
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Server started and listening on port ${PORT}`);
   console.log('NODE_ENV=', process.env.NODE_ENV || 'development');
 
   // تشغيل خدمة الواتساب بعد إقلاع السيرفر
   setTimeout(async () => {
     try {
-      const whatsappService = await load('./services/whatsappService.js');
-      if (typeof whatsappService.start === 'function') {
+      const whatsappService = require('./services/whatsappService');
+      if (whatsappService && typeof whatsappService.start === 'function') {
         await whatsappService.start();
       }
       console.log('WhatsApp start attempted.');
     } catch (err) {
-      console.error('WhatsApp start error:', err?.message || err);
+      console.error('WhatsApp start error:', err && err.message ? err.message : err);
     }
   }, 2000);
 });
