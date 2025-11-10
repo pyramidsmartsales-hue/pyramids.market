@@ -8,20 +8,49 @@ const path = require('path');
 
 const app = express();
 app.use(helmet());
-app.use(cors());
+
+// ===== CORS (ثابت ومسموح للأصول الصحيحة فقط) =====
+/*
+  لو حاب تغيّر قائمة الأصول المسموح بها بدون تعديل الكود،
+  عيّن متغير البيئة CORS_ALLOWLIST بفواصل:
+    CORS_ALLOWLIST=https://pyramids-market-site.onrender.com,http://localhost:5173
+*/
+const allowlist = (process.env.CORS_ALLOWLIST || 'https://pyramids-market-site.onrender.com,http://localhost:5173')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+// كي لا تختلط الاستجابات في الكاش عند تعدد Origins
+app.use((req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
+
+const corsOptions = {
+  origin(origin, cb) {
+    // اسمح بطلبات بدون Origin (مثل healthchecks)
+    if (!origin) return cb(null, true);
+    if (allowlist.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true, // مهم مع fetch(..., { credentials: "include" })
+  methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
+  allowedHeaders: ['Content-Type','Authorization'],
+};
+
+app.use(cors(corsOptions));
+// دعم طلبات الـ preflight
+app.options('*', cors(corsOptions));
+// ================================================
+
 app.use(express.json());
 
 // simple health
 app.get('/api/healthz', (req, res) => res.json({ status: 'ok', name:'pyramids-mart-backend' }));
 
-// mount routers
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/clients', require('./routes/clients'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/expenses', require('./routes/expenses'));
-app.use('/api/sales', require('./routes/sales'));
-app.use('/api/whatsapp', require('./routes/whatsapp'));
-app.use('/api/uploads', require('./routes/uploads'));
+// mount routers (مركّبة ومؤكَّدة من ملفك)
+app.use('/api/auth', require('./routes/auth'));         // :contentReference[oaicite:1]{index=1}
+app.use('/api/clients', require('./routes/clients'));   // :contentReference[oaicite:2]{index=2}
+app.use('/api/products', require('./routes/products')); // :contentReference[oaicite:3]{index=3}
+app.use('/api/expenses', require('./routes/expenses')); // :contentReference[oaicite:4]{index=4}
+app.use('/api/sales', require('./routes/sales'));       // :contentReference[oaicite:5]{index=5}
+app.use('/api/whatsapp', require('./routes/whatsapp')); // :contentReference[oaicite:6]{index=6}
+app.use('/api/uploads', require('./routes/uploads'));   // :contentReference[oaicite:7]{index=7}
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
 // Error handlers
