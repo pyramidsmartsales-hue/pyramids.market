@@ -15,9 +15,6 @@ import SalesPage from './pages/SalesPage'
 import { AnimatePresence } from 'framer-motion'
 import PageWrapper from './ui/anim/PageWrapper'
 
-// الفوتر الجديد
-import AnimatedFooter from './components/AnimatedFooter'
-
 function RoutedPages() {
   const location = useLocation()
   return (
@@ -40,13 +37,12 @@ function RoutedPages() {
 export default function App() {
   return (
     <BrowserRouter>
+      {/* لا يوجد Footer — الخلفية المتحركة تغطي الصفحة كلها */}
       <div className="min-h-screen relative">
-        <Layout className="motion-ready">
+        {/* أضفنا فقط class إضافي اختياري إن أردت استخدامه مستقبلاً */}
+        <Layout className="motion-ready glass-ready">
           <RoutedPages />
         </Layout>
-
-        {/* فوتر أنيميشن ذهبي */}
-        <AnimatedFooter />
       </div>
     </BrowserRouter>
   )

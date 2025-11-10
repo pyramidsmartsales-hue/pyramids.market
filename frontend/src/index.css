@@ -2,26 +2,66 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --------- إعداد الخلفية المتحركة --------- */
+/* ===== Animated Brand Gradient Background (Navy/Brown/Gold) ===== */
 body {
-  background: linear-gradient(-45deg, #0A1931, #185ADB, #FFC947, #0A1931);
-  background-size: 400% 400%;
-  animation: gradientAnimation 12s ease infinite;
-  color: #fff;
+  /* Navy -> Pyramid Brown -> Royal Gold -> Soft Gold */
+  background: linear-gradient(-45deg, #0A1931, #6B4A2B, #D4AF37, #F4C95D, #0A1931);
+  background-size: 500% 500%;
+  animation: brandGradient 14s ease-in-out infinite;
   min-height: 100vh;
-  transition: background 1s ease;
+  /* لا نغيّر ألوان النصوص/الأزرار */
 }
 
-@keyframes gradientAnimation {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes brandGradient {
+  0%   { background-position:   0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
 }
 
-/* --------- تنسيق المكونات المعتاد --------- */
-:root { --ring: #D4AF37; }
+/* ====== Glass Dark surfaces for layout containers ======
+   ملاحظة: لا نعدّل نصوص أو أزرار، فقط خلفيات الحاويات */
+:root { --glass-bg: rgba(0,0,0,0.45); --glass-brd: rgba(255,255,255,0.08); }
 
-.bg-elev { @apply bg-card shadow-soft rounded-2xl; }
+/* Sidebar (نحاول تغطية أكثر المسميات الشائعة) */
+aside,
+.sidebar,
+.sidebar-container,
+.app-sidebar,
+[data-role="sidebar"] {
+  background: var(--glass-bg) !important;
+  border-right: 1px solid var(--glass-brd);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Top Bar / Header */
+header,
+.topbar,
+.app-header,
+[data-role="topbar"] {
+  background: var(--glass-bg) !important;
+  border-bottom: 1px solid var(--glass-brd);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* Main Content wrappers (بطاقات/حاويات/جداول) */
+.bg-elev,
+.card,
+.content-card,
+.table-wrapper,
+.table-container,
+section.content,
+main .container,
+main > .wrapper {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-brd);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 16px;
+}
+
+/* إبقاء الأزرار/النصوص كما هي: لا نعطي ألوانًا جديدة هنا */
 .badge { @apply inline-flex items-center rounded-full border border-line px-2 py-0.5 text-xs text-mute bg-white; }
 .btn { @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-line bg-white text-ink hover:shadow-soft transition; }
 .btn-primary { @apply bg-gold text-black border-gold hover:opacity-95; }
@@ -29,78 +69,11 @@ body {
 .card-value { @apply text-2xl font-semibold text-ink; }
 .link { @apply text-cocoa hover:opacity-80 underline-offset-4 hover:underline; }
 
-/* --------- فوتر أنيميشن ذهبي --------- */
-:root{
-  --gold-1:#D4AF37;
-  --gold-2:#F4C95D;
-  --gold-3:#8C6A1B;
-}
-
-.pm-footer{
-  position: sticky;
-  bottom: 0;
-  width: 100%;
-  z-index: 30;
-  background: rgba(10, 25, 49, 0.25);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  color: #EDEDED;
-}
-
-.pm-footer-inner{
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 20px 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.pm-line{
-  flex: 1 1 auto;
-  height: 3px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--gold-2) 25%,
-    var(--gold-1) 45%,
-    var(--gold-2) 65%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: pm-shimmer 3.2s linear infinite;
+/* (اختياري) ظلال لطيفة للحاويات لإبرازها فوق الخلفية المتحركة */
+.bg-elev, .card, .content-card, .table-wrapper, .table-container {
   box-shadow:
-    0 0 8px rgba(212,175,55,.45),
-    0 0 18px rgba(244,201,93,.25);
+    0 6px 24px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
-@keyframes pm-shimmer{
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.pm-brand{
-  font-size: 13px;
-  letter-spacing: .2px;
-  color: #F7F7F7;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
-}
-
-.pm-brand::before, .pm-brand::after{
-  content:"";
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, var(--gold-2), var(--gold-1) 60%, var(--gold-3) 100%);
-  box-shadow: 0 0 10px rgba(212,175,55,.75);
-}
-
-.pm-line.thin{
-  height: 2px; opacity: .55;
-  animation-duration: 5.5s;
-  margin-top: 6px;
-}
+/* لا يوجد Footer: تم حذف أنماطه بالكامل */
