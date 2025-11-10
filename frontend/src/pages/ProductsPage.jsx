@@ -3,7 +3,6 @@ import Section from '../components/Section'
 import Table from '../components/Table'
 import ActionMenu from '../components/ActionMenu'
 import Modal from '../components/Modal'
-import { readExcelRows } from "../lib/excel"
 
 const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\+$/,"");
 const API_BASE = API_ORIG.replace(/\/api$/,"");
@@ -87,6 +86,7 @@ export default function ProductsPage(){
     const f = e.target.files?.[0]
     if (!f) return
     try{
+      const { readExcelRows } = await import('../lib/excel')
       const rowsX = await readExcelRows(f)
       const norm = rowsX.map(r=>({
         name: r.Name || r['Product Name'] || r.Product || r.Item || '',
