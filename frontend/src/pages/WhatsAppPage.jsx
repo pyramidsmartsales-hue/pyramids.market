@@ -3,19 +3,20 @@ import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/,"");
-const url = (p) => `${API_BASE}${p.startsWith('/')?p:`/${p}`}`;
+// تحضير عنوان الـAPI
+const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const API_BASE = API_ORIG.replace(/\/api$/, "");
+const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`;
 
 export default function WhatsAppPage() {
   const [clients, setClients] = useState([]);
-  const [q, setQ] = useState(""); // بحث العملاء
+  const [q, setQ] = useState("");
   const [selectedClients, setSelectedClients] = useState([]);
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [status, setStatus] = useState("Not connected");
-  const [qrDataUrl, setQrDataUrl] = useState(null); // صورة QR جاهزة من السيرفر
+  const [qrDataUrl, setQrDataUrl] = useState(null);
 
-  // تحميل العملاء
   useEffect(() => {
     (async () => {
       try {
@@ -29,11 +30,10 @@ export default function WhatsAppPage() {
     })();
   }, []);
 
-  // حالة واتساب
   useEffect(() => {
     async function fetchStatus() {
       try {
-        const res = await fetch(`${API_BASE}/api/whatsapp/status`, { credentials:'include' });
+        const res = await fetch(url('/api/whatsapp/status'), { credentials:'include' });
         const data = await res.json();
         setStatus(data.state || data.connected ? 'connected' : 'Not connected');
       } catch {
@@ -45,19 +45,16 @@ export default function WhatsAppPage() {
     return () => clearInterval(i1);
   }, []);
 
-  // جلب QR كـ dataUrl من السيرفر (بدون أي استيراد لمكتبات)
   useEffect(() => {
     let cancelled = false;
     (async function loop(){
       try {
-        const res = await fetch(`${API_BASE}/api/whatsapp/qr`, { credentials:'include' });
+        const res = await fetch(url('/api/whatsapp/qr'), { credentials:'include' });
         if (res.status === 200) {
           const data = await res.json();
-          // backend يعيد { qr, dataUrl } — نستخدم dataUrl مباشرة
           if (data?.dataUrl) {
             if (!cancelled) setQrDataUrl(data.dataUrl);
           } else if (!data?.qr) {
-            // لا يوجد QR الآن
             if (!cancelled) setQrDataUrl(null);
           }
         } else if (res.status === 204) {
@@ -88,17 +85,17 @@ export default function WhatsAppPage() {
       return;
     }
 
-    const res = await fetch(`${API_BASE}/api/whatsapp/send-bulk`, {
+    const res = await fetch(url('/api/whatsapp/send-bulk'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ to: selectedClients, message, mediaUrl: imageUrl || undefined }),
     });
 
     const data = await res.json();
-    if (data.ok) {
+    if (res.ok && data.ok) {
       alert("Messages sent successfully!");
     } else {
-      alert("Failed to send messages: " + (data.error || "Unknown error"));
+      alert("Failed: " + (data?.error || (res.status + " " + res.statusText)));
     }
   };
 
@@ -111,7 +108,6 @@ export default function WhatsAppPage() {
             <div>Status: {status}</div>
           </div>
 
-          {/* QR */}
           {qrDataUrl && (
             <div className="mb-4">
               <div className="text-sm text-mute mb-1">Scan to connect:</div>

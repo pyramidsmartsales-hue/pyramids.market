@@ -14,15 +14,18 @@ export default function POSPage() {
   const [products, setProducts] = useState([])
   const [clientsList, setClientsList] = useState([])
 
-  const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/,"");
+  // تحضير عنوان الـAPI
+  const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const API_BASE = API_ORIG.replace(/\/api$/, "");
+  const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`;
 
   useEffect(()=>{
     // جلب المنتجات
-    fetch(`${API_BASE}/products`).then(r=>r.json()).then(d=>{
+    fetch(url('/api/products')).then(r=>r.json()).then(d=>{
       setProducts(Array.isArray(d)? d : [])
     }).catch(()=>{})
     // جلب العملاء
-    fetch(`${API_BASE}/clients`, { credentials:'include' }).then(r=>r.json()).then(d=>{
+    fetch(url('/api/clients'), { credentials:'include' }).then(r=>r.json()).then(d=>{
       const arr = Array.isArray(d?.data)? d.data : (Array.isArray(d)? d : [])
       setClientsList(arr)
       setClient(arr[0] || null)
@@ -65,7 +68,6 @@ export default function POSPage() {
 
   return (
     <div className="grid xl:grid-cols-4 gap-6">
-      {/* Product Search */}
       <Section title="Product Search">
         <input className="w-full rounded-xl border border-line px-3 py-2" placeholder="Search by name or barcode..." value={query} onChange={e=>setQuery(e.target.value)} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
@@ -78,7 +80,6 @@ export default function POSPage() {
         </div>
       </Section>
 
-      {/* Cart */}
       <Section title="Cart">
         {cart.length===0 ? <div className="text-mute">No items yet</div> : (
           <ul className="space-y-2">
@@ -98,7 +99,6 @@ export default function POSPage() {
         )}
       </Section>
 
-      {/* Invoice Summary */}
       <Section title="Invoice Summary">
         <div className="space-y-3">
           <div className="flex justify-between"><span>Subtotal</span><b>{K(subtotal)}</b></div>
@@ -135,7 +135,6 @@ export default function POSPage() {
         </div>
       </Section>
 
-      {/* Select Client */}
       <Section title="Select Client">
         <ul className="space-y-2">
           {clientsList.map(c => (

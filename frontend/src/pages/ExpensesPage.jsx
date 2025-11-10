@@ -5,8 +5,10 @@ import Modal from '../components/Modal'
 import ActionMenu from '../components/ActionMenu'
 import { readExcelRows, mapRowByAliases, exportRowsToExcel } from "../lib/excel"
 
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/+$/,"");
-const url = (p) => `${API_BASE}${p.startsWith('/')?p:`/${p}`}`;
+// تحضير عنوان الـAPI
+const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const API_BASE = API_ORIG.replace(/\/api$/, "");
+const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`;
 
 const EXPENSE_ALIASES = {
   name: ["name", "expense", "expense name"],
@@ -48,7 +50,6 @@ export default function ExpensesPage() {
     { key:'name',   title:'Name' },
     { key:'date',   title:'Date' },
     { key:'amount', title:'Amount', render:r=>K(r.amount) },
-    // { key:'category',   title:'Category' }, // ← محذوف حسب طلبك
     { key:'notes',   title:'Notes' },
   ]
 
@@ -56,7 +57,6 @@ export default function ExpensesPage() {
     {key:'name', title:'Name'},
     {key:'date', title:'Date'},
     {key:'amount', title:'Amount'},
-    // {key:'category', title:'Category'}, // محذوف من التصدير أيضاً لتطابق الجدول
     {key:'notes', title:'Notes'},
   ], "expenses.xlsx")
 
@@ -95,7 +95,6 @@ export default function ExpensesPage() {
         name: r.name || "",
         date: String(r.date || "").slice(0,10),
         amount: Number(r.amount || 0),
-        // category محذوف من الواجهة، لكن لا نمنع وجوده في البيانات
         notes: r.notes || "",
       }))
       const res = await fetch(url('/api/expenses/bulk-upsert'), {
@@ -120,7 +119,6 @@ export default function ExpensesPage() {
     const res = await fetch(url(`/api/expenses/${expenseId}/receipt`), { method:'POST', body: fd });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    // تحديث الصف لعرض receiptUrl إن رغبت مستقبلاً
     setRows(prev => prev.map(r => r._id===expenseId ? {...r, receiptUrl: data.receiptUrl} : r));
     alert('Receipt uploaded.');
   }
@@ -193,7 +191,6 @@ export default function ExpensesPage() {
                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, amount:e.target.value}}))}/>
             </label>
 
-            {/* Category محذوف من الجدول، نتركه داخليًا إن رغبت لاحقًا */}
             <label className="col-span-2 text-sm">
               <span className="block text-mute mb-1">Notes</span>
               <input className="border border-line rounded-xl px-3 py-2 w-full"
