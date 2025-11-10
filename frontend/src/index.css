@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== حركة التدرّج ===== */
+/* ===== حركة التدرّج (مستخدمة داخل AppBackground) ===== */
 @keyframes brandGradient {
   0%   { background-position:   0% 50%; }
   50%  { background-position: 100% 50%; }
@@ -11,7 +11,7 @@
 
 html, body, #root { height: 100%; background: transparent !important; }
 
-/* ===== Glass Dark عام ===== */
+/* ===== إعدادات الزجاج العام ===== */
 :root{
   --glass-alpha: 0.20; /* 0.15 – 0.30 */
   --glass-bg: rgba(0,0,0,var(--glass-alpha));
@@ -35,7 +35,39 @@ header, .topbar, .app-header, [data-role="topbar"] {
   -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
-/* Main containers / cards / tables */
+/* الغلاف الزجاجي الموحد لكل الصفحات */
+.page-surface {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-brd);
+  border-radius: 16px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow:
+    0 6px 24px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  padding: 20px;
+  margin: 16px;
+}
+
+/* === منع الطبقة المزدوجة داخل page-surface ===
+   أي حاويات/بطاقات داخلية تصبح شفافة وتستخدم حدود الزجاج فقط */
+.page-surface > .bg-elev,
+.page-surface > .card,
+.page-surface > .content-card,
+.page-surface > .panel,
+.page-surface > .box,
+.page-surface .table-wrapper,
+.page-surface .table-container,
+.page-surface .recharts-wrapper,
+.page-surface section,
+.page-surface main .container,
+.page-surface main > .wrapper {
+  background: transparent !important;
+  border-color: var(--glass-brd) !important;
+  box-shadow: none !important;
+}
+
+/* الحالات العامة للحاويات (لو لم تكن داخل page-surface) */
 .bg-elev,
 .card, .content-card, .panel, .box,
 .table-wrapper, .table-container,
@@ -51,26 +83,26 @@ section.content, main .container, main > .wrapper,
     inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-/* الغلاف الزجاجي العام لصفحات WhatsApp و Clients */
-.page-surface {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-brd);
-  border-radius: 16px;
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow:
-    0 6px 24px rgba(0,0,0,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.05);
-  padding: 20px;
-  margin: 16px;
-}
-
-/* إزالة الخلفيات البيضاء الشائعة */
+/* إزالة الخلفيات البيضاء الشائعة التي قد تغطي التدرج */
 .bg-white, .bg-gray-50, .bg-gray-100, .bg-slate-50, .bg-slate-100 {
   background: transparent !important;
 }
 
-/* إبقاء الأزرار والكلمات كما هي */
+/* ===== إزالة أي “ورقة بيضاء” عليا محتملة ===== */
+body > div, #root > div { background: transparent !important; }
+main, .main, .content, .content-root, .layout, .layout-root,
+.app-layout, .layout-content, .app-content, .page, .page-root,
+.container, .container-fluid, .wrapper, .page-wrapper {
+  background: transparent !important;
+}
+table, thead, tbody, .table, .table-root, .table-container {
+  background: transparent !important;
+}
+[class*="bg-white"]:not(button):not(.btn):not(.btn-primary) {
+  background-color: transparent !important;
+}
+
+/* نُبقي الأزرار والكلمات كما هي */
 .badge { @apply inline-flex items-center rounded-full border border-line px-2 py-0.5 text-xs text-mute bg-white; }
 .btn { @apply inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-line bg-white text-ink hover:shadow-soft transition; }
 .btn-primary { @apply bg-gold text-black border-gold hover:opacity-95; }
@@ -78,21 +110,5 @@ section.content, main .container, main > .wrapper,
 .card-value { @apply text-2xl font-semibold text-ink; }
 .link { @apply text-cocoa hover:opacity-80 underline-offset-4 hover:underline; }
 
-/* إخفاء أي فوتر قديم */
+/* لا فوتر */
 footer, .pm-footer, footer.pm-footer, [data-role="footer"] { display: none !important; }
-
-/* ===== (جديد) إزالة أي “ورقة بيضاء” عليا قد تغطي الخلفية ===== */
-body > div, #root > div { background: transparent !important; }
-main, .main, .content, .content-root, .layout, .layout-root,
-.app-layout, .layout-content, .app-content, .page, .page-root,
-.container, .container-fluid, .wrapper, .page-wrapper {
-  background: transparent !important;
-}
-/* جداول كبيرة قد ترسم خلفية */
-table, thead, tbody, .table, .table-root, .table-container {
-  background: transparent !important;
-}
-/* أي كلاس فيه bg-white (ما عدا الأزرار) */
-[class*="bg-white"]:not(button):not(.btn):not(.btn-primary) {
-  background-color: transparent !important;
-}
