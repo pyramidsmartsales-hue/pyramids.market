@@ -8,14 +8,14 @@ const url = (p) => `${API_BASE}${p.startsWith('/')?p:`/${p}`}`;
 
 export default function WhatsAppPage() {
   const [clients, setClients] = useState([]);
-  const [q, setQ] = useState(""); // ← بحث العملاء
+  const [q, setQ] = useState(""); // بحث العملاء
   const [selectedClients, setSelectedClients] = useState([]);
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [status, setStatus] = useState("Not connected");
-  const [qrDataUrl, setQrDataUrl] = useState(null); // ← صورة QR
+  const [qrDataUrl, setQrDataUrl] = useState(null); // صورة QR جاهزة من السيرفر
 
-  // Load clients from backend instead of hardcoded list
+  // تحميل العملاء
   useEffect(() => {
     (async () => {
       try {
@@ -29,13 +29,13 @@ export default function WhatsAppPage() {
     })();
   }, []);
 
-  // WhatsApp status
+  // حالة واتساب
   useEffect(() => {
     async function fetchStatus() {
       try {
-        const res = await fetch(`${API_BASE}/api/whatsapp/status`);
+        const res = await fetch(`${API_BASE}/api/whatsapp/status`, { credentials:'include' });
         const data = await res.json();
-        setStatus(data.state || "Unknown");
+        setStatus(data.state || data.connected ? 'connected' : 'Not connected');
       } catch {
         setStatus("Error");
       }
@@ -45,21 +45,23 @@ export default function WhatsAppPage() {
     return () => clearInterval(i1);
   }, []);
 
-  // QR polling (يتطلب backend يعيد { qr: '...' })
+  // جلب QR كـ dataUrl من السيرفر (بدون أي استيراد لمكتبات)
   useEffect(() => {
     let cancelled = false;
-    let QR;
     (async function loop(){
       try {
-        const res = await fetch(`${API_BASE}/api/whatsapp/qr`);
+        const res = await fetch(`${API_BASE}/api/whatsapp/qr`, { credentials:'include' });
         if (res.status === 200) {
           const data = await res.json();
-          if (data?.qr) {
-            // استيراد ديناميكي لمكتبة qrcode بدون التأثير على بقية الباندل
-            QR = QR || (await import('qrcode'));
-            const url = await QR.toDataURL(data.qr);
-            if (!cancelled) setQrDataUrl(url);
+          // backend يعيد { qr, dataUrl } — نستخدم dataUrl مباشرة
+          if (data?.dataUrl) {
+            if (!cancelled) setQrDataUrl(data.dataUrl);
+          } else if (!data?.qr) {
+            // لا يوجد QR الآن
+            if (!cancelled) setQrDataUrl(null);
           }
+        } else if (res.status === 204) {
+          if (!cancelled) setQrDataUrl(null);
         }
       } catch {}
       if (!cancelled) setTimeout(loop, 3000);
