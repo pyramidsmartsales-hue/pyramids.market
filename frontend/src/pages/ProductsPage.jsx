@@ -1,259 +1,230 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import Section from '../components/Section'
-import Table from '../components/Table'
-import ActionMenu from '../components/ActionMenu'
-import Modal from '../components/Modal'
-import { readExcelRows, exportRowsToExcel } from "../lib/excel"
+const express = require('express');
+const router = express.Router();
+const Product = require('../models/Product');
 
-// ===== API base (إزالة /api المكرر) =====
-const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\/+$/,"")
-const API_BASE = API_ORIG.replace(/\/api$/,"")
-const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`
+/** ===== Helpers ===== */
+const num = (x, def = 0) => {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : def;
+};
 
-// ===== أدوات عامة =====
 const getPath = (obj, path) => {
-  if (!obj) return undefined
-  if (path.includes('.')) return path.split('.').reduce((a,k)=> (a==null?a:a[k]), obj)
-  return obj[path]
-}
-const pickNumberFromPaths = (obj, paths) => {
-  for (const p of paths) {
-    const v = getPath(obj, p)
-    if (v !== undefined && v !== null && String(v).trim() !== '') {
-      const n = Number(v)
-      if (!Number.isNaN(n)) return n
+  if (!obj) return undefined;
+  if (path.includes('.')) {
+    return path.split('.').reduce((acc, k) => (acc == null ? acc : acc[k]), obj);
+  }
+  return obj[path];
+};
+
+const pickFirst = (obj, keys, def = undefined) => {
+  for (const k of keys) {
+    const v = getPath(obj, k);
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return def;
+};
+
+// حقول مسموح بتحديثها حسب المخطط الشائع لدينا
+const ALLOWED_FIELDS = new Set([
+  'name',
+  'salePrice',
+  'costPrice',
+  'quantity',
+  'expiry',
+  'category',
+  'active',
+  'totalSales',
+]);
+
+/** =======================
+ * GET /api/products
+ * ======================= */
+router.get('/', async (req, res) => {
+  try {
+    const products = await Product.find().sort({ updatedAt: -1 }).lean();
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** =======================
+ * POST /api/products
+ * ======================= */
+router.post('/', async (req, res) => {
+  try {
+    const p = new Product(req.body);
+    await p.save();
+    res.status(201).json(p);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+/** =======================
+ * PUT /api/products/:id
+ * ======================= */
+router.put('/:id', async (req, res) => {
+  try {
+    // فلترة الحقول طبقًا للمسموح
+    const body = {};
+    for (const k of Object.keys(req.body || {})) {
+      if (ALLOWED_FIELDS.has(k)) body[k] = req.body[k];
     }
+    const updated = await Product.findByIdAndUpdate(req.params.id, body, {
+      new: true,
+      runValidators: true,
+    }).lean();
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
-  return null
-}
-const fmtMoney = (n) => {
-  if (n === null) return '—'
-  try { return new Intl.NumberFormat('en-KE',{style:'currency',currency:'KES',maximumFractionDigits:2}).format(n) }
-  catch { const x = Number(n); return isNaN(x) ? '—' : `KSh ${x.toFixed(2)}` }
-}
+});
 
-// ===== صفحات محتملة لكل قيمة =====
-const SALE_PATHS = ['salePrice','price','sellingPrice','unitPrice','pricing.sale','price.sale']
-const COST_PATHS = ['cost','costPrice','purchasePrice','buyPrice','pricing.cost','price.cost']
-const QTY_PATHS  = ['quantity','qty','stock','inventory.qty','inventory.quantity']
-
-export default function ProductsPage(){
-  const [rows,setRows] = useState([])
-  const [q,setQ]       = useState('')
-  const [modal,setModal] = useState({open:false, edit:null})
-  const fileRef = useRef(null)
-
-  useEffect(()=>{
-    (async ()=>{
-      try{
-        const r = await fetch(url('/api/products'))
-        const d = await r.json()
-        setRows(Array.isArray(d) ? d : [])
-      }catch(e){ console.error(e) }
-    })()
-  },[])
-
-  const filtered = useMemo(()=>{
-    const s = q.trim().toLowerCase()
-    return rows.filter(p =>
-      (getPath(p,'name') || '').toLowerCase().includes(s) ||
-      String(getPath(p,'barcode') || getPath(p,'sku') || '').includes(s) ||
-      (getPath(p,'category') || '').toLowerCase().includes(s)
-    )
-  },[rows,q])
-
-  const Availability = ({qty})=>{
-    const n = Number(qty||0)
-    const color = n === 0 ? 'bg-red-500' : n < 10 ? 'bg-yellow-500' : n > 20 ? 'bg-green-500' : 'bg-yellow-500'
-    return <span className={`inline-block w-3 h-3 rounded-full ${color}`} title={String(n)} />
+/** =======================
+ * DELETE /api/products/:id
+ * ======================= */
+router.delete('/:id', async (req, res) => {
+  try {
+    const del = await Product.findByIdAndDelete(req.params.id).lean();
+    if (!del) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
+});
 
-  const columns = [
-    { key:'name', title:'Name', render:r=> getPath(r,'name') || '—' },
-    { key:'barcode', title:'Barcode', render:r=> getPath(r,'barcode') || getPath(r,'sku') || '—' },
-    { key:'sale', title:'Sale Price', render:r=> fmtMoney(pickNumberFromPaths(r, SALE_PATHS)) },
-    { key:'cost', title:'Cost',       render:r=> fmtMoney(pickNumberFromPaths(r, COST_PATHS)) },
-    { key:'quantity', title:'Qty',    render:r=> {
-        const val = pickNumberFromPaths(r, QTY_PATHS)
-        return val === null ? '—' : val
-      } },
-    { key:'availability', title:'الإتاحة', render:r=> <Availability qty={pickNumberFromPaths(r, QTY_PATHS)||0} /> },
-    { key:'expiry', title:'Expiry', render:r=> getPath(r,'expiry') || '—' },
-    { key:'category', title:'Category', render:r=> getPath(r,'category') || '—' },
-  ]
+/** =========================================================================
+ * POST /api/products/import/excel
+ * يستقبل: { items: [ { Name/Barcode/Sale Price/Cost/Quantity/... } ] }
+ * - لا يضع barcode داخل $set حتى لا يصطدم بالمخطط.
+ * - upsert بالاسم فقط.
+ * ========================================================================= */
+router.post('/import/excel', async (req, res) => {
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : null;
+    if (!items) return res.status(400).json({ error: 'Body must be { items: [...] }' });
 
-  const exportExcel = () => {
-    const mapped = filtered.map(r => ({
-      Name: getPath(r,'name') || '',
-      Barcode: String(getPath(r,'barcode') || getPath(r,'sku') || ''),
-      SalePrice: pickNumberFromPaths(r, SALE_PATHS) ?? 0,
-      Cost: pickNumberFromPaths(r, COST_PATHS) ?? 0,
-      Quantity: pickNumberFromPaths(r, QTY_PATHS) ?? 0,
-      Expiry: getPath(r,'expiry') || '',
-      Category: getPath(r,'category') || ''
-    }))
-    exportRowsToExcel(mapped, [
-      {key:'Name',title:'Name'},
-      {key:'Barcode',title:'Barcode'},
-      {key:'SalePrice',title:'SalePrice'},
-      {key:'Cost',title:'Cost'},
-      {key:'Quantity',title:'Quantity'},
-      {key:'Expiry',title:'Expiry'},
-      {key:'Category',title:'Category'},
-    ], "products.xlsx")
-  }
+    let upserted = 0;
+    const results = [];
 
-  function addNew(){
-    setModal({open:true, edit:{
-      name:'', barcode:'', salePrice:0, cost:0, quantity:0, expiry:'', category:''
-    }})
-  }
+    for (const raw of items) {
+      const name = String(pickFirst(raw, ['name', 'product', 'item', 'product name']) || '').trim();
+      // نبقي قراءة الباركود فقط لو تحب تستخدمه لاحقًا – لكن لا نضعه في $set
+      // const barcode = String(pickFirst(raw, ['barcode', 'code', 'sku']) || '').trim();
 
-  async function save(p){
-    const body = {
-      ...p,
-      salePrice: pickNumberFromPaths(p, SALE_PATHS) ?? 0,
-      cost:      pickNumberFromPaths(p, COST_PATHS) ?? 0,
-      quantity:  pickNumberFromPaths(p, QTY_PATHS) ?? 0,
+      const salePrice = num(
+        pickFirst(raw, ['salePrice', 'price', 'sellingPrice', 'unitPrice', 'pricing.sale', 'price.sale']),
+        0
+      );
+      const costPrice = num(
+        pickFirst(raw, ['cost', 'costPrice', 'purchasePrice', 'buyPrice', 'pricing.cost', 'price.cost']),
+        0
+      );
+      const quantity = num(
+        pickFirst(raw, ['quantity', 'qty', 'stock', 'inventory.qty', 'inventory.quantity']),
+        0
+      );
+      const expiry   = pickFirst(raw, ['expiry', 'expiryDate', 'expire', 'exp']) || null;
+      const category = pickFirst(raw, ['category', 'cat']) || null;
+
+      if (!name) {
+        // لا اسم => نتجاهل السطر
+        results.push({ ok: false, reason: 'missing name' });
+        continue;
+      }
+
+      // نبني الـ update مع فلترة للمسموح فقط
+      const update = {};
+      const candidate = {
+        name,
+        salePrice,
+        costPrice,
+        quantity,
+        expiry,
+        category,
+        updatedAt: new Date(),
+      };
+      for (const k of Object.keys(candidate)) {
+        if (candidate[k] !== undefined && ALLOWED_FIELDS.has(k)) update[k] = candidate[k];
+      }
+
+      const r = await Product.updateOne(
+        { name }, // upsert بالاسم فقط
+        { $set: update, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true } // لا نغير strict => الافتراضي آمن الآن لأننا لا نرسل حقول غريبة
+      );
+
+      if (r.upsertedCount || r.modifiedCount) upserted++;
+      results.push({ where: { name }, ok: true });
     }
-    const method = p._id ? 'PUT' : 'POST'
-    const endpoint = p._id ? `/api/products/${p._id}` : '/api/products'
-    const res = await fetch(url(endpoint), {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    const saved = await res.json()
-    setRows(prev => p._id ? prev.map(x => x._id===p._id ? saved : x) : [saved, ...prev])
-    setModal({open:false, edit:null})
-  }
 
-  // ====== NEW: استيراد إكسل إنجليزي (Name, Barcode, Sale Price, Cost, Quantity, Expiry, Category) ======
-  // نطبع رؤوس الأعمدة إلى شكل "أحرف صغيرة + بدون مسافات" حتى نتعامل مع أي اختلاف في الحروف/المسافات.
-  const canon = (s='') => String(s).toLowerCase().replace(/\s+/g,'').trim()
-  const pickAny = (obj, keys) => {
-    // جرّب مفاتيح كما هي
-    for (const k of keys) if (obj[k] !== undefined) return obj[k]
-    // ثم جرّب بمفاتيح مُقننة (lower+بدون مسافات)
-    const map = Object.fromEntries(Object.keys(obj).map(k => [canon(k), obj[k]]))
-    for (const k of keys) {
-      const v = map[canon(k)]
-      if (v !== undefined) return v
+    res.json({ ok: true, upserted, count: items.length, results });
+  } catch (e) {
+    console.error('import/excel error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/** =========================================================================
+ * POST /api/products/bulk-import  (أبقيناه كما هو تقريبًا مع فلترة عامّة)
+ * ========================================================================= */
+router.post('/bulk-import', async (req, res) => {
+  try {
+    let rows = [];
+    const { csv, json } = req.body || {};
+
+    if (csv && typeof csv === 'string') {
+      const lines = csv.trim().split(/\r?\n/);
+      if (!lines.length) return res.json({ ok: true, upserted: 0 });
+      const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+      rows = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+        const obj = {};
+        headers.forEach((h, i) => (obj[h] = cols[i]));
+        return obj;
+      });
+    } else if (Array.isArray(json)) {
+      rows = json;
+    } else {
+      return res.status(400).json({ error: 'Provide csv (string) or json (array).' });
     }
-    return undefined
-  }
 
-  async function onImportExcel(e){
-    const f = e.target.files?.[0]
-    if (!f) return
-    try{
-      const rowsX = await readExcelRows(f) // صفوف كائنات {Header:Value}
-      const norm = rowsX.map(rRaw => {
-        const r = rRaw || {}
-        const name     = pickAny(r, ['Name','Product','Item','Product Name'])
-        const barcode  = pickAny(r, ['Barcode','Code','SKU'])
-        const sale     = pickAny(r, ['Sale Price','Selling Price','Sell Price','Price','Unit Price'])
-        const cost     = pickAny(r, ['Cost','Cost Price','Purchase Price','Buy Price'])
-        const qty      = pickAny(r, ['Quantity','Qty','Stock'])
-        const expiry   = pickAny(r, ['Expiry','Expiry Date','Expire','Exp'])
-        const category = pickAny(r, ['Category','Cat'])
+    let upserted = 0;
+    for (const r of rows) {
+      const name = (r.name || '').trim();
+      if (!name) continue;
 
-        return {
-          name: name || '',
-          barcode: barcode ? String(barcode) : '',
-          salePrice: Number(sale ?? 0),
-          cost: Number(cost ?? 0),
-          quantity: Number(qty ?? 0),
-          expiry: expiry ? String(expiry).slice(0,10) : '',
-          category: category || ''
-        }
-      })
+      const candidate = {
+        name,
+        salePrice: num(r.salePrice ?? r.price),
+        costPrice: num(r.costPrice ?? r.cost),
+        quantity:  num(r.quantity ?? r.qty),
+        active: String(r.active ?? 'true').toLowerCase() !== 'false',
+        totalSales: num(r.totalSales),
+        updatedAt: new Date(),
+      };
 
-      // أرسل JSON للراوتر الذي أضفناه: POST /api/products/import/excel
-      const res = await fetch(url('/api/products/import/excel'), {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ items: norm })
-      })
-      if (!res.ok) throw new Error(await res.text())
+      const update = {};
+      for (const k of Object.keys(candidate)) {
+        if (candidate[k] !== undefined && ALLOWED_FIELDS.has(k)) update[k] = candidate[k];
+      }
 
-      // أعد الجلب بعد الاستيراد
-      const rr = await fetch(url('/api/products'))
-      const dd = await rr.json()
-      setRows(Array.isArray(dd) ? dd : [])
-      e.target.value=""
+      const result = await Product.updateOne(
+        { name },
+        { $set: update, $setOnInsert: { createdAt: new Date() } },
+        { upsert: true }
+      );
 
-      alert('Imported products.')
-    }catch(err){
-      alert('Import failed:\n' + err.message)
+      if (result.upsertedCount || result.modifiedCount) upserted++;
     }
+
+    res.json({ ok: true, upserted });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
   }
+});
 
-  return (
-    <div className="space-y-6">
-      <Section
-        title="Products"
-        actions={
-          <div className="flex items-center gap-2">
-            <input className="border border-line rounded-xl px-3 py-2" placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} />
-            <button className="btn btn-primary" onClick={addNew}>Add Product</button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImportExcel} />
-            <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
-            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
-          </div>
-        }
-      >
-        <Table columns={columns} data={filtered} />
-      </Section>
-
-      <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={modal.edit? 'Edit Product' : 'Add Product'}>
-        {modal.edit && (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Name</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.name}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, name:e.target.value}}))}/>
-            </label>
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Barcode</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.barcode}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, barcode:e.target.value}}))}/>
-            </label>
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Sale Price</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     value={pickNumberFromPaths(modal.edit, ['salePrice','price','sellingPrice','unitPrice']) ?? 0}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, salePrice:+e.target.value}}))}/>
-            </label>
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Cost</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     value={pickNumberFromPaths(modal.edit, ['cost','costPrice','purchasePrice','buyPrice']) ?? 0}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, cost:+e.target.value}}))}/>
-            </label>
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Quantity</span>
-              <input type="number" className="border border-line rounded-xl px-3 py-2 w-full"
-                     value={pickNumberFromPaths(modal.edit, ['quantity','qty','stock']) ?? 0}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, quantity:+e.target.value}}))}/>
-            </label>
-            <label className="text-sm">
-              <span className="block text-mute mb-1">Expiry</span>
-              <input type="date" className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.expiry}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, expiry:e.target.value}}))}/>
-            </label>
-            <label className="col-span-2 text-sm">
-              <span className="block text-mute mb-1">Category</span>
-              <input className="border border-line rounded-xl px-3 py-2 w-full" value={modal.edit.category}
-                     onChange={e=>setModal(m=>({...m, edit:{...m.edit, category:e.target.value}}))}/>
-            </label>
-            <div className="col-span-2 flex gap-2 justify-end">
-              <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
-              <button className="btn btn-primary" onClick={()=>save(modal.edit)}>Save</button>
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
-  )
-}
+module.exports = router;
