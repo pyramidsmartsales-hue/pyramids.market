@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 
 // الصفحات
@@ -11,28 +11,41 @@ import POSPage from './pages/POSPage'
 import ClientsPage from './pages/ClientsPage'
 import SalesPage from './pages/SalesPage'
 
-/* ▼▼ الجديد ▼▼ */
+/* الخلفية والثيم العام */
 import AppBackground from './ui/theme/AppBackground'
 import './styles/pyramids-theme.css'
-/* ▲▲ الجديد ▲▲ */
+
+/* الأنيميشن العام للصفحات */
+import { AnimatePresence } from 'framer-motion'
+import PageWrapper from './ui/anim/PageWrapper'
+
+function RoutedPages() {
+  const location = useLocation()
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Navigate to="/overview" replace />} />
+        <Route path="/overview" element={<PageWrapper><OverviewPage /></PageWrapper>} />
+        <Route path="/whatsapp" element={<PageWrapper><WhatsAppPage /></PageWrapper>} />
+        <Route path="/products" element={<PageWrapper><ProductsPage /></PageWrapper>} />
+        <Route path="/expenses" element={<PageWrapper><ExpensesPage /></PageWrapper>} />
+        <Route path="/pos" element={<PageWrapper><POSPage /></PageWrapper>} />
+        <Route path="/clients" element={<PageWrapper><ClientsPage /></PageWrapper>} />
+        <Route path="/sales" element={<PageWrapper><SalesPage /></PageWrapper>} />
+        <Route path="*" element={<PageWrapper><div className="p-6 text-mute">Not Found</div></PageWrapper>} />
+      </Routes>
+    </AnimatePresence>
+  )
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      {/* نلفّ كل الـ Layout بالخلفية المتحركة — لا نضيف شريط جديد */}
+      {/* الخلفية المتحركة على مستوى التطبيق كله */}
       <AppBackground>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<Navigate to="/overview" replace />} />
-            <Route path="/overview" element={<OverviewPage />} />
-            <Route path="/whatsapp" element={<WhatsAppPage />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/expenses" element={<ExpensesPage />} />
-            <Route path="/pos" element={<POSPage />} />
-            <Route path="/clients" element={<ClientsPage />} />
-            <Route path="/sales" element={<SalesPage />} />
-            <Route path="*" element={<div className="p-6 text-mute">Not Found</div>} />
-          </Routes>
+        {/* نضيف كلاس لبدء التحريك لعناصر الواجهة الشائعة */}
+        <Layout className="motion-ready">
+          <RoutedPages />
         </Layout>
       </AppBackground>
     </BrowserRouter>
