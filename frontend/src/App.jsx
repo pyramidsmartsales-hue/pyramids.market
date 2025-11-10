@@ -37,10 +37,9 @@ function RoutedPages() {
 export default function App() {
   return (
     <BrowserRouter>
-      {/* لا يوجد Footer — الخلفية المتحركة تغطي الصفحة كلها */}
+      {/* لا فوتر — الخلفية المتحركة تغطي الصفحة بالكامل */}
       <div className="min-h-screen relative">
-        {/* أضفنا فقط class إضافي اختياري إن أردت استخدامه مستقبلاً */}
-        <Layout className="motion-ready glass-ready">
+        <Layout className="motion-ready">
           <RoutedPages />
         </Layout>
       </div>
