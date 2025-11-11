@@ -12,7 +12,15 @@ export default function POSPage(){
   const [clients,setClients]   = useState([])
   const [cart,setCart]         = useState([])
   const [client,setClient]     = useState(null)
-  const [payment,setPayment]   = useState('Cash')
+
+  // === مطلوب: تقييد طرق الدفع إلى M-Pesa / Cash فقط
+  const [payment,setPayment]   = useState('mpesa')  // 'mpesa' | 'cash'
+
+  // === جديد: خصم + نقاط + المبلغ المستلم/الباقي (اقتراح عملي)
+  const [discount, setDiscount] = useState(0)       // amount
+  const [addPoints, setAddPoints] = useState(0)     // loyalty points to add
+  const [received, setReceived] = useState(0)       // for cash payment
+
   const [q,setQ]               = useState('')
 
   async function load(){
@@ -32,7 +40,9 @@ export default function POSPage(){
     )
   },[products,q])
 
-  const total = useMemo(()=>cart.reduce((s,i)=>s + Number(i.salePrice||0)*Number(i.qty||0),0), [cart])
+  const subtotal = useMemo(()=>cart.reduce((s,i)=>s + Number(i.salePrice||0)*Number(i.qty||0),0), [cart])
+  const total = useMemo(()=> Math.max(0, subtotal - Number(discount||0)), [subtotal, discount])
+  const change = useMemo(()=> payment==='cash' ? Math.max(0, Number(received||0) - total) : 0, [payment, received, total])
 
   function addToCart(p){
     setCart(prev=>{
@@ -47,20 +57,30 @@ export default function POSPage(){
 
   async function confirmPurchase(){
     if (!cart.length){ alert('Cart is empty'); return }
+    if (payment === 'cash' && Number(received||0) < total) { alert('Received is less than total'); return }
+
     const items = cart.map(i => ({
       barcode: i.barcode, name: i.name, qty: Number(i.qty||0),
       price: Number(i.salePrice||0), cost: Number(i.cost||0)
     }))
+
     const payload = {
       invoiceNo: `${Date.now()}`,
       clientName: client?.name || '',
       clientPhone: client?.phone || '',
-      paymentMethod: payment || 'Cash',
+      paymentMethod: payment,       // 'mpesa' | 'cash'
       items,
+      subtotal,
+      discount: Number(discount||0),
       total,
-      profit: items.reduce((s,i)=> s + (Number(i.price)-Number(i.cost))*Number(i.qty), 0)
+      profit: items.reduce((s,i)=> s + (Number(i.price)-Number(i.cost))*Number(i.qty), 0),
+      addPoints: Number(addPoints||0),
+      received: Number(received||0),
+      change,
     }
+
     try{
+      // ممكن تغيّر الـ endpoint حسب سيرفرك
       const res = await fetch(url('/api/sales/google'), {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       })
@@ -69,24 +89,27 @@ export default function POSPage(){
         throw new Error(t || `HTTP ${res.status}`)
       }
       alert([
-        'Purchase confirmed.',
+        'Sale completed ✅',
         `Client: ${payload.clientName||'—'}`,
         `Items: ${items.length}`,
-        `Total: KSh ${total}`
+        `Total: ${fmt(total)}`
       ].join('\n'))
-      setCart([])
+      // reset
+      setCart([]); setDiscount(0); setAddPoints(0); setReceived(0)
     }catch(e){
       alert('Failed to confirm purchase:\n' + e.message)
     }
   }
 
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       <Section title="Product Search">
-        <input className="border border-line rounded-xl px-3 py-2 w-full mb-3" placeholder="Search by name or barcode..." value={q} onChange={e=>setQ(e.target.value)} />
+        <input className="border border-line rounded-xl px-3 py-2 w-full mb-3"
+               placeholder="Search by name or barcode..." value={q} onChange={e=>setQ(e.target.value)} />
         <div className="space-y-2">
           {filtered.map(p=>(
-            <button key={p.barcode} className="block w-full text-left border border-line rounded-xl px-3 py-2 hover:bg-surface"
+            <button key={p.barcode}
+                    className="block w-full text-left border border-line rounded-xl px-3 py-2 hover:bg-surface"
                     onClick={()=>addToCart(p)}>
               <div className="font-medium">{p.name}</div>
               <div className="text-xs text-mute">KSh {p.salePrice} — #{p.barcode}</div>
@@ -121,26 +144,70 @@ export default function POSPage(){
       </Section>
 
       <Section title="Summary">
-        <div className="space-y-2">
-          <div className="flex justify-between"><span>Total</span><strong>{fmt(total)}</strong></div>
-          <div className="flex gap-2">
-            {['Cash','M-PESA','Bank','Other'].map(m=>(
-              <button key={m} className={`btn ${payment===m? 'btn-primary':''}`} onClick={()=>setPayment(m)}>{m}</button>
-            ))}
+        <div className="space-y-3">
+          <div className="flex justify-between"><span>Subtotal</span><strong>{fmt(subtotal)}</strong></div>
+
+          {/* Discount (amount) */}
+          <label className="block">
+            <span className="block text-white/70 mb-1">Discount (amount)</span>
+            <input type="number" min="0" className="w-full rounded-xl bg-white/90 text-black px-3 py-2"
+                   value={discount} onChange={e=>setDiscount(+e.target.value || 0)} />
+          </label>
+
+          {/* Payment method: M-Pesa / Cash فقط */}
+          <label className="block">
+            <span className="block text-white/70 mb-1">Payment Method</span>
+            <select className="w-full rounded-xl bg-white/90 text-black px-3 py-2"
+                    value={payment} onChange={e=>setPayment(e.target.value)}>
+              <option value="mpesa">M-Pesa</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
+
+          {/* Received + Change (لـ Cash) */}
+          {payment === 'cash' && (
+            <>
+              <label className="block">
+                <span className="block text-white/70 mb-1">Received</span>
+                <input type="number" min="0" className="w-full rounded-xl bg-white/90 text-black px-3 py-2"
+                      value={received} onChange={e=>setReceived(+e.target.value || 0)} />
+              </label>
+              <div className="flex justify-between">
+                <span className="text-white/70">Change</span>
+                <strong>{fmt(change)}</strong>
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center justify-between border-t border-white/10 pt-3 mt-3">
+            <span className="text-white/90">TOTAL</span>
+            <b className="text-2xl">{fmt(total)}</b>
           </div>
-          <div className="mt-4">
+
+          {/* Add Loyalty Points */}
+          <label className="block">
+            <span className="block text-white/70 mb-1">Add Loyalty Points</span>
+            <input type="number" min="0" className="w-full rounded-xl bg-white/90 text-black px-3 py-2"
+                   value={addPoints} onChange={e=>setAddPoints(+e.target.value || 0)} />
+          </label>
+
+          {/* Choose client */}
+          <div className="mt-2">
             <div className="text-sm text-mute mb-1">Client:</div>
             <div className="space-y-2 max-h-52 overflow-auto">
               {clients.map(c => (
-                <button key={c.phone} className={`block w-full text-left border border-line rounded-xl px-3 py-2 ${client?.phone===c.phone? 'bg-surface':''}`}
+                <button key={c.phone}
+                        className={`block w-full text-left border border-line rounded-xl px-3 py-2 ${client?.phone===c.phone? 'bg-surface':''}`}
                         onClick={()=>setClient(c)}>
                   <div className="font-medium">{c.name}</div>
                   <div className="text-xs text-mute">+{c.phone}</div>
                 </button>
               ))}
+              {!clients.length && <div className="text-sm text-mute">No clients</div>}
             </div>
           </div>
-          <button className="btn btn-primary w-full mt-4" onClick={confirmPurchase}>Confirm Purchase</button>
+
+          <button className="btn-gold w-full mt-2" onClick={confirmPurchase}>Complete Sale</button>
         </div>
       </Section>
     </div>
