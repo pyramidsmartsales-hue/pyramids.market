@@ -14,6 +14,7 @@ export default function WhatsAppPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [status, setStatus] = useState("Not connected");
   const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   async function loadClients(){
     const res = await fetch(url('/api/clients'), { credentials:'include' });
@@ -85,12 +86,35 @@ export default function WhatsAppPage() {
     else alert("Failed: " + (data?.error || (res.status + " " + res.statusText)));
   }
 
-  // ✅ إضافة زر تحديد الكل
+  // ✅ تحديد الكل / إلغاء التحديد
   const handleSelectAll = () => {
     if (selectedClients.length === filtered.length) {
-      setSelectedClients([]); // إلغاء التحديد في حال الكل محدد
+      setSelectedClients([]);
     } else {
-      setSelectedClients(filtered.map(c => c.phone)); // تحديد الكل
+      setSelectedClients(filtered.map(c => c.phone));
+    }
+  };
+
+  // ✅ رفع الصورة إلى السيرفر
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    setUploading(true);
+    try {
+      const res = await fetch(url("/api/upload"), { method: "POST", body: formData });
+      const data = await res.json();
+      if (data?.url) {
+        setImageUrl(data.url);
+        alert("✅ Image uploaded successfully!");
+      } else {
+        alert("Upload failed: " + (data?.error || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -156,12 +180,25 @@ export default function WhatsAppPage() {
                 onChange={(e)=>setMessage(e.target.value)} 
                 placeholder="Write your message here..." 
               />
-              <input 
-                className="w-full border rounded p-2 my-2" 
-                placeholder="Image URL (optional)" 
-                value={imageUrl} 
-                onChange={(e)=>setImageUrl(e.target.value)} 
-              />
+
+              {/* ✅ زر رفع الصورة */}
+              <div className="my-2">
+                <label className="block text-sm mb-1 text-gray-300">Attach Image (optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleUpload}
+                  disabled={uploading}
+                  className="block w-full text-sm text-gray-200 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-yellow-500 file:text-black hover:file:bg-yellow-600 cursor-pointer"
+                />
+                {uploading && <div className="text-yellow-400 text-sm mt-1">Uploading...</div>}
+                {imageUrl && (
+                  <div className="mt-2">
+                    <img src={imageUrl} alt="Preview" className="w-24 h-24 object-cover rounded" />
+                  </div>
+                )}
+              </div>
+
               <Button className="btn-gold" onClick={handleSend}>Send</Button>
             </div>
           </div>
