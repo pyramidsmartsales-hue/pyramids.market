@@ -17,7 +17,6 @@ export default function SalesPage(){
     const d = await res.json()
     setRows(d.rows||[]); setCount(d.count||0)
   }
-
   useEffect(()=>{ load().catch(()=>{}) },[page,q])
 
   async function openDetails(id){
@@ -27,36 +26,32 @@ export default function SalesPage(){
   }
 
   async function syncGoogle(){
-    try {
-      await fetch(url('/api/sales/sync/google-csv?mode=mirror'), { method:'POST' });
-      await load();
-      alert('Sales synced from Google Sheet.');
-    } catch (e) {
-      alert('Sync failed:\n' + e.message)
-    }
+    try { await fetch(url('/api/sales/sync/google-csv?mode=mirror'), { method:'POST' });
+      await load(); alert('Sales synced from Google Sheet.'); }
+    catch (e) { alert('Sync failed:\n' + e.message) }
   }
 
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4 space-y-3 sales-page">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">المبيعات</h1>
+        <h1 className="text-xl font-semibold">Sales</h1>
         <div className="flex items-center gap-2">
-          <input value={q} onChange={e=>{setPage(1); setQ(e.target.value)}} placeholder="ابحث برقم الفاتورة أو اسم العميل" className="border rounded px-3 py-2"/>
-          <button className="px-3 py-2 rounded bg-black text-white" onClick={syncGoogle}>Sync Google</button>
+          <input value={q} onChange={e=>{setPage(1); setQ(e.target.value)}} placeholder="Search by invoice or customer" className="border rounded px-3 py-2"/>
+          <button className="btn-gold" onClick={syncGoogle}>Sync Google</button>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="bg-gray-50">
-              <th className="p-2">رقم الفاتورة</th>
-              <th className="p-2">العميل</th>
-              <th className="p-2">التاريخ والوقت</th>
-              <th className="p-2">إجمالي الفاتورة</th>
-              <th className="p-2">طريقة الدفع</th>
-              <th className="p-2">الربح</th>
-              <th className="p-2">تفاصيل</th>
+            <tr>
+              <th className="p-2">Invoice No</th>
+              <th className="p-2">Customer</th>
+              <th className="p-2">Date &amp; Time</th>
+              <th className="p-2">Total</th>
+              <th className="p-2">Payment Method</th>
+              <th className="p-2">Profit</th>
+              <th className="p-2">Details</th>
             </tr>
           </thead>
           <tbody>
@@ -69,7 +64,7 @@ export default function SalesPage(){
                 <td className="p-2">{r.paymentMethod}</td>
                 <td className="p-2">{Number(r.profit||0).toFixed(2)}</td>
                 <td className="p-2">
-                  <button className="px-3 py-1 rounded bg-black text-white" onClick={()=>openDetails(r._id)}>تفاصيل</button>
+                  <button className="btn-gold px-3 py-1 rounded" onClick={()=>openDetails(r._id)}>Details</button>
                 </td>
               </tr>
             ))}
@@ -79,16 +74,16 @@ export default function SalesPage(){
 
       {details && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center" onClick={()=>setDetails(null)}>
-          <div className="bg-white rounded-xl p-4 w/full max-w-2xl" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-xl p-4 w/full max-w-2xl text-black" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <div className="text-lg font-semibold">تفاصيل الفاتورة {details.invoiceNumber}</div>
-              <button className="btn" onClick={()=>setDetails(null)}>إغلاق</button>
+              <div className="text-lg font-semibold">Invoice Details {details.invoiceNumber}</div>
+              <button className="btn-gold" onClick={()=>setDetails(null)}>Close</button>
             </div>
-            <div className="text-sm text-mute mb-2">
-              العميل: {details.clientName || details?.client?.name || '—'} • التاريخ: {details.createdAt ? new Date(details.createdAt).toLocaleString() : '—'}
+            <div className="text-sm mb-2">
+              Customer: {details.clientName || details?.client?.name || '—'} • Date: {details.createdAt ? new Date(details.createdAt).toLocaleString() : '—'}
             </div>
             <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50"><th className="p-2 text-left">الصنف</th><th className="p-2">الكمية</th><th className="p-2">سعر البيع</th><th className="p-2">التكلفة</th><th className="p-2">الإجمالي</th></tr></thead>
+              <thead><tr><th className="p-2 text-left">Item</th><th className="p-2">Qty</th><th className="p-2">Sale Price</th><th className="p-2">Cost</th><th className="p-2">Subtotal</th></tr></thead>
               <tbody>
                 {(details.items||[]).map((it,idx)=>(
                   <tr key={idx} className="border-b">
@@ -102,9 +97,9 @@ export default function SalesPage(){
               </tbody>
             </table>
             <div className="text-right mt-3">
-              <div>إجمالي الفاتورة: <b>{Number(details.total||0).toFixed(2)}</b></div>
-              <div>الربح: <b>{Number(details.profit||0).toFixed(2)}</b></div>
-              <div>طريقة الدفع: <b>{details.paymentMethod}</b></div>
+              <div>Total: <b>{Number(details.total||0).toFixed(2)}</b></div>
+              <div>Profit: <b>{Number(details.profit||0).toFixed(2)}</b></div>
+              <div>Payment: <b>{details.paymentMethod}</b></div>
             </div>
           </div>
         </div>

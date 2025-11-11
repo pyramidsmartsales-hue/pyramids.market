@@ -2,7 +2,6 @@ import React, { useMemo, useRef, useState, useEffect } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
 import Modal from '../components/Modal'
-import ActionMenu from '../components/ActionMenu'
 
 const API_ORIG = (import.meta.env.VITE_API_URL || '').replace(/\/+$/,'')
 const API_BASE = API_ORIG.replace(/\/api$/,'')
@@ -10,14 +9,7 @@ const url = (p) => `${API_BASE}${p.startsWith('/') ? p : `/${p}`}`
 
 const K = n => `KSh ${Number(n || 0).toLocaleString('en-KE')}`
 
-// Excel serial -> "YYYY-MM-DD"
-function excelSerialToISO(n){
-  const ms = Math.round((Number(n) - 25569) * 86400 * 1000)
-  return new Date(ms).toISOString().slice(0,10)
-}
-// Show "DD/MM/YYYY" nicely whatever backend sends
 function displayDate(v){
-  if (typeof v === 'number') return excelSerialToISO(v).split('-').reverse().join('/')
   const s = String(v||'').slice(0,10)
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.split('-').reverse().join('/')
   if (/^\d{2}-\d{2}-\d{4}$/.test(s)) return s.replaceAll('-', '/')
@@ -29,7 +21,6 @@ export default function ExpensesPage() {
   const [from, setFrom]   = useState('')
   const [to, setTo]       = useState('')
   const [modal, setModal] = useState({ open:false, edit:null })
-  const fileRef = useRef(null)
 
   async function load(){
     const res = await fetch(url('/api/expenses'))
@@ -53,25 +44,6 @@ export default function ExpensesPage() {
     { key:'amount', title:'Amount', render:r=>K(r.amount) },
     { key:'notes',  title:'Notes' },
   ]
-
-  const exportExcel = async () => {
-    const { exportRowsToExcel } = await import('../lib/excel')
-    exportRowsToExcel(
-      filt.map(r => ({
-        Description: r.description || '',
-        Date: String(r.date||'').slice(0,10),
-        Amount: Number(r.amount||0),
-        Notes: r.notes || ''
-      })),
-      [
-        {key:'Description', title:'Description'},
-        {key:'Date', title:'Date'},
-        {key:'Amount', title:'Amount'},
-        {key:'Notes', title:'Notes'},
-      ],
-      'expenses.xlsx'
-    )
-  }
 
   function addNew(){
     setModal({
@@ -102,50 +74,22 @@ export default function ExpensesPage() {
     }
   }
 
-  async function onImportExcel(e){
-    const f = e.target.files?.[0]
-    if (!f) return
-    try {
-      const { readExcelRows } = await import('../lib/excel')
-      const rowsX = await readExcelRows(f)
-      const norm = rowsX.map(r => ({
-        description: r.Description || r.Name || r['Expense Name'] || r.Expense || '',
-        date: String(r.Date || '').slice(0,10),
-        amount: Number(r.Amount || 0),
-        category: r.Category || '',
-        notes: r.Notes || '',
-      }))
-      for (const it of norm) {
-        if (!it.date || !it.description) continue
-        await fetch(url('/api/expenses/google'), {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(it)
-        })
-      }
-      await load(); e.target.value = ''; alert('Imported & appended to Google Sheet.')
-    } catch (err) {
-      alert('Import failed:\n' + err.message)
-    }
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 expenses-page">
       <Section
         title="Expenses"
         actions={
           <div className="flex gap-2">
             <input type="date" className="rounded-xl border border-line px-3 py-2" value={from} onChange={e=>setFrom(e.target.value)} />
             <input type="date" className="rounded-xl border border-line px-3 py-2" value={to}   onChange={e=>setTo(e.target.value)} />
-            <button className="btn" onClick={()=>{setFrom(''); setTo('')}}>Clear</button>
-            <button className="btn btn-primary" onClick={addNew}>Add Expense</button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImportExcel}/>
-            <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
-            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
+            <button className="btn-gold" onClick={()=>{setFrom(''); setTo('')}}>Clear</button>
+            <button className="btn-gold" onClick={addNew}>Add Expense</button>
+            {/* Import/Export تمت إزالتها */}
           </div>
         }
       >
         <Table columns={columns} data={filt} />
-        <div className="text-right mt-2 text-sm text-mute">Total: <strong>{K(total)}</strong></div>
+        <div className="text-right mt-2 text-sm">Total: <strong>{K(total)}</strong></div>
       </Section>
 
       <Modal open={modal.open} onClose={()=>setModal({open:false, edit:null})} title={'Add Expense'}>
@@ -172,8 +116,8 @@ export default function ExpensesPage() {
                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, notes:e.target.value}}))}/>
             </label>
             <div className="col-span-2 flex gap-2 justify-end">
-              <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
-              <button className="btn btn-primary" onClick={()=>save(modal.edit)}>Save</button>
+              <button className="btn-gold" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
+              <button className="btn-gold" onClick={()=>save(modal.edit)}>Save</button>
             </div>
           </div>
         )}

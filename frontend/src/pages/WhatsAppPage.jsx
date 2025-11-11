@@ -22,7 +22,6 @@ export default function WhatsAppPage() {
     const arr = Array.isArray(json.data) ? json.data : json;
     setClients(Array.isArray(arr) ? arr : []);
   }
-
   useEffect(() => { loadClients().catch(()=>{}); }, []);
 
   useEffect(() => {
@@ -31,9 +30,7 @@ export default function WhatsAppPage() {
         const res = await fetch(url('/api/whatsapp/status'), { credentials:'include' });
         const data = await res.json();
         setStatus(data.state || data.connected ? 'connected' : 'Not connected');
-      } catch {
-        setStatus("Error");
-      }
+      } catch { setStatus("Error"); }
     }
     fetchStatus();
     const i1 = setInterval(fetchStatus, 5000);
@@ -49,12 +46,8 @@ export default function WhatsAppPage() {
           const data = await res.json();
           if (data?.dataUrl) {
             if (!cancelled) setQrDataUrl(data.dataUrl);
-          } else if (!data?.qr) {
-            if (!cancelled) setQrDataUrl(null);
-          }
-        } else if (res.status === 204) {
-          if (!cancelled) setQrDataUrl(null);
-        }
+          } else if (!data?.qr) { if (!cancelled) setQrDataUrl(null); }
+        } else if (res.status === 204) { if (!cancelled) setQrDataUrl(null); }
       } catch {}
       if (!cancelled) setTimeout(loop, 3000);
     })();
@@ -66,46 +59,34 @@ export default function WhatsAppPage() {
     (c.phone||"").includes(q)
   );
 
-  const handleSelectClient = (phone) => {
-    setSelectedClients((prev) =>
-      prev.includes(phone) ? prev.filter((p) => p !== phone) : [...prev, phone]
-    );
-  };
+  const toggle = (phone) =>
+    setSelectedClients(prev => prev.includes(phone) ? prev.filter(p=>p!==phone) : [...prev, phone])
 
-  const handleSend = async () => {
-    if (!selectedClients.length || !message) {
-      alert("Please select clients and write a message.");
-      return;
-    }
+  async function syncWA(){
+    try { await fetch(url('/api/whatsapp/sync/google-csv?mode=mirror'), { method:'POST' });
+      await loadClients(); alert('WhatsApp list synced (imported into Clients).'); }
+    catch (e) { alert('Sync failed:\n' + e.message) }
+  }
+
+  async function handleSend(){
+    if (!selectedClients.length || !message) { alert("Please select clients and write a message."); return; }
     const res = await fetch(url('/api/whatsapp/send-bulk'), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ to: selectedClients, message, mediaUrl: imageUrl || undefined }),
     });
     const data = await res.json();
-    if (res.ok && data.ok) alert("Messages sent successfully!");
-    else alert("Failed: " + (data?.error || (res.status + " " + res.statusText)));
-  };
-
-  async function syncWA(){
-    try {
-      await fetch(url('/api/whatsapp/sync/google-csv?mode=mirror'), { method:'POST' });
-      await loadClients();
-      alert('WhatsApp list synced (imported into Clients).');
-    } catch (e) {
-      alert('Sync failed:\n' + e.message);
-    }
+    if (res.ok && data.ok) alert("Messages sent successfully!"); else alert("Failed: " + (data?.error || (res.status + " " + res.statusText)));
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="space-y-4 whatsapp-page">
+      <Card className="card">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold">WhatsApp</h2>
             <div className="flex items-center gap-2">
               <div>Status: {status}</div>
-              <Button onClick={syncWA}>Sync WA</Button>
+              <Button className="btn-gold" onClick={syncWA}>Sync WA</Button>
             </div>
           </div>
 
@@ -121,9 +102,9 @@ export default function WhatsAppPage() {
               <h3 className="font-semibold mb-2">Clients</h3>
               <input className="w-full border rounded p-2 mb-2" placeholder="Search by name or phone…" value={q} onChange={(e)=>setQ(e.target.value)} />
               <div className="max-h-80 overflow-y-auto border rounded p-2">
-                {filtered.map((c) => (
+                {filtered.map(c => (
                   <label key={c._id || c.phone} className="flex items-center gap-2 py-1">
-                    <input type="checkbox" value={c.phone} checked={selectedClients.includes(c.phone)} onChange={() => handleSelectClient(c.phone)} />
+                    <input type="checkbox" checked={selectedClients.includes(c.phone)} onChange={()=>toggle(c.phone)} />
                     <span>{c.name}</span><span className="text-mute">({c.phone})</span>
                   </label>
                 ))}
@@ -132,9 +113,9 @@ export default function WhatsAppPage() {
 
             <div>
               <h3 className="font-semibold mb-2">Message</h3>
-              <textarea className="w-full border rounded p-2" rows={6} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Write your message here..." />
-              <input className="w-full border rounded p-2 my-2" placeholder="Image URL (optional)" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
-              <Button onClick={handleSend}>Send</Button>
+              <textarea className="w-full border rounded p-2" rows={6} value={message} onChange={(e)=>setMessage(e.target.value)} placeholder="Write your message here..." />
+              <input className="w-full border rounded p-2 my-2" placeholder="Image URL (optional)" value={imageUrl} onChange={(e)=>setImageUrl(e.target.value)} />
+              <Button className="btn-gold" onClick={handleSend}>Send</Button>
             </div>
           </div>
         </CardContent>

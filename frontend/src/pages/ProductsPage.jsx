@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Section from '../components/Section'
 import Table from '../components/Table'
-import ActionMenu from '../components/ActionMenu'
 import Modal from '../components/Modal'
 
 const API_ORIG = (import.meta.env.VITE_API_URL || "").replace(/\+$/,"");
@@ -17,7 +16,6 @@ export default function ProductsPage(){
   const [rows,setRows] = useState([])
   const [q,setQ]       = useState('')
   const [modal,setModal] = useState({open:false, edit:null})
-  const fileRef = useRef(null)
 
   async function load(){
     const r = await fetch(url('/api/products'))
@@ -44,8 +42,8 @@ export default function ProductsPage(){
     { key:'category', title:'Category' },
     { key:'__actions', title:'Actions', render:r => (
       <div className="flex gap-2">
-        <button className="btn" onClick={()=>setModal({open:true, edit:r})}>Edit</button>
-        <button className="btn" onClick={()=>removeOne(r)}>Delete</button>
+        <button className="btn-gold" onClick={()=>setModal({open:true, edit:r})}>Edit</button>
+        <button className="btn-gold" onClick={()=>removeOne(r)}>Delete</button>
       </div>
     )},
   ]
@@ -61,85 +59,28 @@ export default function ProductsPage(){
       if (!p.barcode || !p.name) { alert('Barcode and Name are required'); return; }
       const body = { barcode:p.barcode, name:p.name, category:p.category||'', cost:+p.cost||0, salePrice:+p.salePrice||0, stock:+p.stock||0, unit:p.unit||'', notes:p.notes||'' };
       const exists = rows.some(x => String(x.barcode) === String(p.barcode));
-      if (exists) {
-        await fetch(url(`/api/products/google/${encodeURIComponent(p.barcode)}`), {
-          method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
-        })
-      } else {
-        await fetch(url('/api/products/google'), {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
-        })
-      }
+      await fetch(url(exists? `/api/products/google/${encodeURIComponent(p.barcode)}` : '/api/products/google'), {
+        method: exists? 'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+      })
       await load(); setModal({open:false, edit:null})
     } catch(e) { alert('Save failed:\n' + e.message) }
   }
 
   async function removeOne(p){
     if (!confirm('Delete this product?')) return
-    try {
-      await fetch(url(`/api/products/google/${encodeURIComponent(p.barcode)}`), { method:'DELETE' })
-      await load()
-    } catch(e){ alert('Delete failed:\n' + e.message) }
-  }
-
-  async function onImportExcel(e){
-    const f = e.target.files?.[0]
-    if (!f) return
-    try{
-      const { readExcelRows } = await import('../lib/excel')
-      const rowsX = await readExcelRows(f)
-      const norm = rowsX.map(r=>({
-        name: r.Name || r['Product Name'] || r.Product || r.Item || '',
-        barcode: String(r.Barcode || r.Code || r.SKU || ''),
-        salePrice: Number(r['Sale Price'] ?? r['Selling Price'] ?? r['Sell Price'] ?? r['Unit Price'] ?? r.Price ?? 0),
-        cost: Number(r.Cost ?? r['Cost Price'] ?? r['Purchase Price'] ?? r['Buy Price'] ?? 0),
-        stock: Number(r.Quantity ?? r.Qty ?? r.Stock ?? 0),
-        expiry: r.Expiry ? String(r.Expiry).slice(0,10) : '',
-        category: r.Category || ''
-      }))
-      for (const it of norm) {
-        if (!it.barcode || !it.name) continue;
-        await fetch(url('/api/products/google'), {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ ...it, unit:'', notes:'' })
-        })
-      }
-      await load(); e.target.value=""; alert('Imported to Google Sheet.')
-    }catch(err){ alert('Import failed:\n' + err.message) }
-  }
-
-  const exportExcel = async () => {
-    const { exportRowsToExcel } = await import('../lib/excel')
-    const mapped = filtered.map(r => ({
-      Name: r.name || '',
-      Barcode: String(r.barcode || r.sku || ''),
-      SalePrice: Number(r.salePrice || 0),
-      Cost: Number(r.cost || 0),
-      Quantity: Number(r.stock || 0),
-      Category: r.category || ''
-    }))
-    exportRowsToExcel(mapped, [
-      {key:'Name',title:'Name'},
-      {key:'Barcode',title:'Barcode'},
-      {key:'SalePrice',title:'SalePrice'},
-      {key:'Cost',title:'Cost'},
-      {key:'Quantity',title:'Quantity'},
-      {key:'Category',title:'Category'},
-    ], "products.xlsx")
+    try { await fetch(url(`/api/products/google/${encodeURIComponent(p.barcode)}`), { method:'DELETE' }); await load() }
+    catch(e){ alert('Delete failed:\n' + e.message) }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 products-page">
       <Section
         title="Products"
         actions={
           <div className="flex items-center gap-2">
             <input className="border border-line rounded-xl px-3 py-2" placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} />
-            <button className="btn btn-primary" onClick={addNew}>Add Product</button>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onImportExcel} />
-            <button className="btn" onClick={()=>fileRef.current?.click()}>Import Excel</button>
-            <ActionMenu label="Export" options={[{ label: 'Excel', onClick: exportExcel }]} />
+            <button className="btn-gold" onClick={addNew}>Add Product</button>
+            {/* Import/Export تمت إزالتها */}
           </div>
         }
       >
@@ -190,8 +131,8 @@ export default function ProductsPage(){
                      onChange={e=>setModal(m=>({...m, edit:{...m.edit, notes:e.target.value}}))}/>
             </label>
             <div className="col-span-2 flex gap-2 justify-end">
-              <button className="btn" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
-              <button className="btn btn-primary" onClick={()=>save(modal.edit)}>Save</button>
+              <button className="btn-gold" onClick={()=>setModal({open:false, edit:null})}>Cancel</button>
+              <button className="btn-gold" onClick={()=>save(modal.edit)}>Save</button>
             </div>
           </div>
         )}
